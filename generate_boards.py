@@ -3,52 +3,75 @@ import itertools
 import pickle
 from copy import copy, deepcopy
 import sys
+from enum import Enum
+import os
+import math
 
-class SpaceObject:
-    def __init__(self):
-        self.short_name = "~"
-        self.long_name = "N/A"
+class SpaceObject(Enum):
+    Empty = 0
+    Comet = 1
+    Asteroid = 2
+    DwarfPlanet = 3
+    PlanetX = 4
+    GasCloud = 5
+    BlackHole = 6
+    
+    def initial(self):
+        if self is SpaceObject.Empty:
+            return "E"
+        elif self is SpaceObject.Comet:
+            return "C"
+        elif self is SpaceObject.Asteroid:
+            return "A"
+        elif self is SpaceObject.DwarfPlanet:
+            return "D"
+        elif self is SpaceObject.PlanetX:
+            return "X"
+        elif self is SpaceObject.GasCloud:
+            return "G"
+        elif self is SpaceObject.BlackHole:
+            return "B"
+        
+    def name(self):
+        if self is SpaceObject.Empty:
+            return "empty sector"
+        elif self is SpaceObject.Comet:
+            return "comet"
+        elif self is SpaceObject.Asteroid:
+            return "asteroid"
+        elif self is SpaceObject.DwarfPlanet:
+            return "dwarf planet"
+        elif self is SpaceObject.PlanetX:
+            return "Planet X"
+        elif self is SpaceObject.GasCloud:
+            return "gas cloud"
+        elif self is SpaceObject.BlackHole:
+            return "black hole"
+    
+    def plural(self):
+        return self.name() + "s"
+    
+    def one(self):
+        if self is SpaceObject.Empty:
+            return "an"
+        elif self is SpaceObject.Comet:
+            return "a"
+        elif self is SpaceObject.Asteroid:
+            return "an"
+        elif self is SpaceObject.DwarfPlanet:
+            return "a"
+        elif self is SpaceObject.PlanetX:
+            return "a"
+        elif self is SpaceObject.GasCloud:
+            return "a"
+        elif self is SpaceObject.BlackHole:
+            return "a"
     
     def __repr__(self):
-        return "<" + self.long_name + ">"
+        return "<" + self.name() + ">"
         
     def __str__(self):
-        return self.short_name
-
-class Comet(SpaceObject):
-    def __init__(self):
-        self.short_name = "C"
-        self.long_name = "Comet"
-        
-class Asteroid(SpaceObject):
-    def __init__(self):
-        self.short_name = "A"
-        self.long_name = "Asteroid"
-
-class Empty(SpaceObject):
-    def __init__(self):
-        self.short_name = "[]"
-        self.long_name = "Empty Sector"
-
-class DwarfPlanet(SpaceObject):
-    def __init__(self):
-        self.short_name = "D"
-        self.long_name = "Dwarf Planet"
-
-class PlanetX(SpaceObject):
-    def __init__(self):
-        self.short_name = "X"
-        self.long_name = "Planet X"
-        
-class GasCloud(SpaceObject):
-    def __init__(self):
-        self.short_name = "G"
-        self.long_name = "Gas Cloud"
-
-class BlackHole(SpaceObject):
-    def __init__(self):
-        self.short_name = "B"
-        self.long_name = "Black Hole"
+        return self.initial()
 
 class Board:
     def __init__(self, objects=[]):
@@ -58,13 +81,7 @@ class Board:
             self.objects = objects
             
     def __str__(self):
-        s = "["
-        for obj in self.objects:
-            s += str(obj)
-            s += ", "
-        s = s[:-2]
-        s += "]"
-        return s
+        return "".join("-" if obj is None else str(obj) for obj in self.objects)
     
     def __repr__(self):
         return "<Board " + str(self) + ">"
@@ -92,6 +109,30 @@ class Board:
     
     def copy(self):
         return Board(deepcopy(self.objects))
+    
+    @classmethod
+    def parse(self, board_string):
+        objects = []
+        for char in board_string:
+            if char == "E":
+                objects.append(SpaceObject.Empty)
+            elif char == "C":
+                objects.append(SpaceObject.Comet)
+            elif char == "A":
+                objects.append(SpaceObject.Asteroid)
+            elif char == "D":
+                objects.append(SpaceObject.DwarfPlanet)
+            elif char == "X":
+                objects.append(SpaceObject.PlanetX)
+            elif char == "G":
+                objects.append(SpaceObject.GasCloud)
+            elif char == "B":
+                objects.append(SpaceObject.BlackHole)
+            elif char == "-":
+                objects.append(None)
+            else:
+                return None
+        return Board(objects)
 
 class Constraint:
     def __init__(self):
@@ -111,6 +152,12 @@ class Constraint:
     
     def affects(self):
         return []
+    
+    def __repr__(self):
+        return "<Constraint>"
+    
+    def __str__(self):
+        return "Constraint"
 
 class CometConstraint(Constraint):
     @staticmethod
@@ -132,7 +179,7 @@ class CometConstraint(Constraint):
     
     def is_satisfied(self, board):
         for i, obj in enumerate(board):
-            if type(obj) is Comet:
+            if type(obj) is SpaceObject.Comet:
                 if (i+1) not in self.prime_positions:
                     return False
         return True
@@ -144,24 +191,30 @@ class CometConstraint(Constraint):
         return 1
     
     def fill_board(self, board, num_objects):
-        num_comets = num_objects[Comet]
+        num_comets = num_objects[SpaceObject.Comet]
         new_boards = []
         for prime_sublist in itertools.combinations(self.prime_positions, num_comets):
             if all(board[p-1] is None for p in prime_sublist):
                 new_board = board.copy()
                 for p in prime_sublist:
-                    new_board[p-1] = Comet()
+                    new_board[p-1] = SpaceObject.Comet
                 new_boards.append(new_board)
         return new_boards
     
     def affects(self):
-        return [ Comet ]
+        return [ SpaceObject.Comet ]
     
     def completes(self):
-        return [ Comet ]
+        return [ SpaceObject.Comet ]
         
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Comet Constraint: board size " + str(self.board_length) + ">"
+    
+    def __str__(self):
+        return "Comet Constraint: board size " + str(self.board_length)
 
 class AsteroidConstraint(Constraint):
     def __init__(self):
@@ -169,8 +222,8 @@ class AsteroidConstraint(Constraint):
     
     def is_satisfied(self, board):
         for i, obj in enumerate(board):
-            if type(obj) is Asteroid:
-                if type(board[i-1]) is not Asteroid and type(board[i+1]) is not Asteroid:
+            if obj is SpaceObject.Asteroid:
+                if board[i-1] is not SpaceObject.Asteroid and board[i+1] is not SpaceObject.Asteroid:
                     return False
         return True
 
@@ -181,7 +234,7 @@ class AsteroidConstraint(Constraint):
         return 1
     
     def fill_board(self, board, num_objects, start_i=0): 
-        num_asteroids = num_objects[Asteroid]
+        num_asteroids = num_objects[SpaceObject.Asteroid]
         new_num_objects = deepcopy(num_objects)
         
         # Fill in board with runs of asteroids, starting new runs only at start_i and after
@@ -196,15 +249,16 @@ class AsteroidConstraint(Constraint):
         # If there is a lone asteroid, find it and immediately add another asteroid clockwise
         for i in range(start_i - 1, len(board)):
             obj = board[i]
-            if type(obj) is Asteroid and type(board[i-1]) is not Asteroid and type(board[i+1]) is not Asteroid:
+            if obj is SpaceObject.Asteroid and board[i-1] is not SpaceObject.Asteroid \
+            and board[i+1] is not SpaceObject.Asteroid:
                 # Found a lone asteroid
                 new_boards = []
                 
                 # Only fill asteroid runs to the right without combining runs
-                if board[i+1] is None and type(board[i+2]) is not Asteroid:
+                if board[i+1] is None and board[i+2] is not SpaceObject.Asteroid:
                     board_copy = board.copy()
-                    board_copy[i+1] = Asteroid()
-                    new_num_objects[Asteroid] = num_asteroids - 1
+                    board_copy[i+1] = SpaceObject.Asteroid
+                    new_num_objects[SpaceObject.Asteroid] = num_asteroids - 1
                     new_boards.extend(self.fill_board(board_copy, new_num_objects, start_i))
                     
                 return new_boards
@@ -215,28 +269,35 @@ class AsteroidConstraint(Constraint):
             obj = board[i]
             if obj is None:
                 # Continue an asteroid run without combining two runs
-                if type(board[i-1]) is Asteroid and type(board[i+1]) is not Asteroid:
+                if board[i-1] is SpaceObject.Asteroid and board[i+1] is not SpaceObject.Asteroid:
                     board_copy = board.copy()
-                    board_copy[i] = Asteroid()
-                    new_num_objects[Asteroid] = num_asteroids - 1
+                    board_copy[i] = SpaceObject.Asteroid
+                    new_num_objects[SpaceObject.Asteroid] = num_asteroids - 1
                     new_boards.extend(self.fill_board(board_copy, new_num_objects, start_i))
                 # OR start a new asteroid run, if conditions allow
-                elif i >= start_i and num_asteroids > 1 and type(board[i-1]) is not Asteroid and type(board[i+1]) is not Asteroid:
+                elif i >= start_i and num_asteroids > 1 and board[i-1] is not SpaceObject.Asteroid \
+                and board[i+1] is not SpaceObject.Asteroid:
                     board_copy = board.copy()
-                    board_copy[i] = Asteroid()
-                    new_num_objects[Asteroid] = num_asteroids - 1
+                    board_copy[i] = SpaceObject.Asteroid
+                    new_num_objects[SpaceObject.Asteroid] = num_asteroids - 1
                     new_boards.extend(self.fill_board(board_copy, new_num_objects, i+1))
         
         return new_boards
         
     def affects(self):
-        return [ Asteroid ]
+        return [ SpaceObject.Asteroid ]
     
     def completes(self):
-        return [ Asteroid]
+        return [ SpaceObject.Asteroid ]
     
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Asteroid Constraint>"
+    
+    def __str__(self):
+        return "Asteroid Constraint"
 
 class NoConstraint(Constraint):
     def __init__(self):
@@ -262,15 +323,21 @@ class NoConstraint(Constraint):
     
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Empty Constraint>"
+    
+    def __str__(self):
+        return "Empty Constraint"
 
 class GasCloudConstraint(Constraint):
     def __init__(self):
         pass
     
     def is_satisfied(self, board):
-        idxs = [i for i in range(len(board)) if type(board[i]) is GasCloud]
+        idxs = [i for i in range(len(board)) if board[i] is SpaceObject.GasCloud]
         for i in idxs:
-            if type(board[i-1]) is not Empty and type(board[i+1]) is not Empty:
+            if board[i-1] is not SpaceObject.Empty and board[i+1] is not SpaceObject.Empty:
                 return False
         return True
     
@@ -281,8 +348,8 @@ class GasCloudConstraint(Constraint):
         return 2
     
     def fill_board(self, board, num_objects, start_i=0):
-        num_gas_clouds = num_objects[GasCloud]
-        num_empty = num_objects[Empty]
+        num_gas_clouds = num_objects[SpaceObject.GasCloud]
+        num_empty = num_objects[SpaceObject.Empty]
         new_num_objects = deepcopy(num_objects)
         
         if num_gas_clouds == 0:
@@ -292,48 +359,54 @@ class GasCloudConstraint(Constraint):
         for i in range(start_i, len(board)):
             obj = board[i]
             if obj is None:
-                if type(board[i-1]) is Empty or type(board[i+1]) is Empty:
+                if board[i-1] is SpaceObject.Empty or board[i+1] is SpaceObject.Empty:
                     board_copy = board.copy()
-                    board_copy[i] = GasCloud()
-                    new_num_objects[GasCloud] = num_gas_clouds - 1
+                    board_copy[i] = SpaceObject.GasCloud
+                    new_num_objects[SpaceObject.GasCloud] = num_gas_clouds - 1
                     new_boards.extend(self.fill_board(board_copy, new_num_objects, i+1))
                 elif num_empty > 0:
-                    if board[i-1] is None and type(board[i-2]) is not GasCloud:
+                    if board[i-1] is None and board[i-2] is not SpaceObject.GasCloud:
                         board_copy = board.copy()
-                        board_copy[i] = GasCloud()
-                        board_copy[i-1] = Empty()
-                        new_num_objects[GasCloud] = num_gas_clouds - 1
-                        new_num_objects[Empty] = num_empty - 1
+                        board_copy[i] = SpaceObject.GasCloud
+                        board_copy[i-1] = SpaceObject.Empty
+                        new_num_objects[SpaceObject.GasCloud] = num_gas_clouds - 1
+                        new_num_objects[SpaceObject.Empty] = num_empty - 1
                         new_boards.extend(self.fill_board(board_copy, new_num_objects, i+1))
 
-                    if board[i+1] is None and type(board[i+2]) is not GasCloud:
+                    if board[i+1] is None and board[i+2] is not SpaceObject.GasCloud:
                         board_copy = board.copy()
-                        board_copy[i] = GasCloud()
-                        board_copy[i+1] = Empty()
-                        new_num_objects[GasCloud] = num_gas_clouds - 1
-                        new_num_objects[Empty] = num_empty - 1
+                        board_copy[i] = SpaceObject.GasCloud
+                        board_copy[i+1] = SpaceObject.Empty
+                        new_num_objects[SpaceObject.GasCloud] = num_gas_clouds - 1
+                        new_num_objects[SpaceObject.Empty] = num_empty - 1
                         new_boards.extend(self.fill_board(board_copy, new_num_objects, i+2))
                     
         return new_boards
     
     def affects(self):
-        return [ GasCloud ]
+        return [ SpaceObject.GasCloud ]
     
     def completes(self):
-        return [ GasCloud ]
+        return [ SpaceObject.GasCloud ]
     
     def adds(self):
-        return [ Empty ]
+        return [ SpaceObject.Empty ]
+    
+    def __repr__(self):
+        return "<Gas Cloud Constraint>"
+    
+    def __str__(self):
+        return "Gas Cloud Constraint"
 
 class PlanetXConstraint(Constraint):
     def __init__(self):
         pass
     
     def is_satisfied(self, board):
-        i = [type(obj) for obj in board].index(PlanetX)
-        if type(board[i-1]) is DwarfPlanet or type(board[i+1]) is DwarfPlanet:
+        i = board.objects.index(SpaceObject.PlanetX)
+        if board[i-1] is SpaceObject.DwarfPlanet or board[i+1] is SpaceObject.DwarfPlanet:
             return False
-        elif type(board[i-1]) is BlackHole or type(board[i+1]) is BlackHole:
+        elif board[i-1] is SpaceObject.BlackHole or board[i+1] is SpaceObject.BlackHole:
             return False
         else:
              return True
@@ -347,22 +420,28 @@ class PlanetXConstraint(Constraint):
     def fill_board(self, board, num_objects):
         new_boards = []
         for i, obj in enumerate(board):
-            if type(board[i-1]) is not DwarfPlanet and type(board[i-1]) is not BlackHole \
-                and type(board[i+1]) is not DwarfPlanet and type(board[i+1]) is not BlackHole \
-                and board[i] is None:
+            if board[i-1] is not SpaceObject.DwarfPlanet and board[i-1] is not SpaceObject.BlackHole \
+            and board[i+1] is not SpaceObject.DwarfPlanet and board[i+1] is not SpaceObject.BlackHole \
+            and board[i] is None:
                 board_copy = board.copy()
-                board_copy[i] = PlanetX()
+                board_copy[i] = SpaceObject.PlanetX
                 new_boards.append(board_copy)
         return new_boards
     
     def affects(self):
-        return [ PlanetX, DwarfPlanet, BlackHole ]
+        return [ SpaceObject.PlanetX, SpaceObject.DwarfPlanet, SpaceObject.BlackHole ]
     
     def completes(self):
-        return [ PlanetX ]
+        return [ SpaceObject.PlanetX ]
     
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Planet X Constraint>"
+    
+    def __str__(self):
+        return "Planet X Constraint"
 
 class DwarfPlanetConstraint(Constraint):
     def __init__(self, band_size):
@@ -373,7 +452,7 @@ class DwarfPlanetConstraint(Constraint):
         current_run = 0
         goal = len(board) - self.band_size
         for obj in board:
-            if type(obj) is DwarfPlanet:
+            if obj is SpaceObject.DwarfPlanet:
                 if current_run > longest_no_planet_run:
                     longest_no_planet_run = current_run
                 current_run = 0
@@ -387,7 +466,7 @@ class DwarfPlanetConstraint(Constraint):
             return False
         
         for obj in board:
-            if type(obj) is DwarfPlanet:
+            if obj is SpaceObject.DwarfPlanet:
                 if current_run == goal:
                     return True
                 else:
@@ -415,41 +494,47 @@ class DwarfPlanetConstraint(Constraint):
         for i in range(i_start, band_start + self.band_size - num_dwarf_planets):
             if board[i] is None:
                 board_copy = board.copy()
-                board_copy[i] = DwarfPlanet()
+                board_copy[i] = SpaceObject.DwarfPlanet
                 new_boards.extend(self._fill_band(board_copy, num_dwarf_planets - 1, band_start, i+1))
         return new_boards
 
     
     def fill_board(self, board, num_objects):
-        if num_objects[DwarfPlanet] < 2:
+        if num_objects[SpaceObject.DwarfPlanet] < 2:
             return []
         
         new_boards = []
         for i in range(len(board)):
             if board[i] is None and board[i + self.band_size - 1] is None:
                 board_copy = board.copy()
-                board_copy[i] = DwarfPlanet()
-                board_copy[i + self.band_size - 1] = DwarfPlanet()
-                new_boards.extend(self._fill_band(board_copy, num_objects[DwarfPlanet] - 2, i))
+                board_copy[i] = SpaceObject.DwarfPlanet
+                board_copy[i + self.band_size - 1] = SpaceObject.DwarfPlanet
+                new_boards.extend(self._fill_band(board_copy, num_objects[SpaceObject.DwarfPlanet] - 2, i))
         return new_boards
     
     def affects(self):
-        return [ DwarfPlanet ]
+        return [ SpaceObject.DwarfPlanet ]
     
     def completes(self):
-        return [ DwarfPlanet ]
+        return [ SpaceObject.DwarfPlanet ]
     
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Dwarf Planet Constraint: band size " + str(self.band_size) + ">"
+    
+    def __str__(self):
+        return "Dwarf Planet Constraint: band size " + str(self.band_size)
 
 class BlackHoleConstraint(Constraint):
     def __init__(self):
         pass
     
     def is_satisfied(self, board):
-        idxs = [i for i in range(len(board)) if type(board[i]) is BlackHole]
+        idxs = [i for i in range(len(board)) if board[i] is SpaceObject.BlackHole]
         for i in idxs:
-            if type(board[i-1]) is Empty or type(board[i+1]) is Empty:
+            if board[i-1] is SpaceObject.Empty or board[i+1] is SpaceObject.Empty:
                 return False
         return True
     
@@ -462,56 +547,61 @@ class BlackHoleConstraint(Constraint):
     def fill_board(self, board, num_objects):
         new_boards = []
         for i, obj in enumerate(board):
-            if obj is None and type(board[i-1]) is not Empty and type(board[i+1]) is not Empty:
+            if obj is None and board[i-1] is not SpaceObject.Empty and board[i+1] is not SpaceObject.Empty:
                 board_copy = board.copy()
-                board_copy[i] = BlackHole()
+                board_copy[i] = SpaceObject.BlackHole
                 new_boards.append(board_copy)
         return new_boards
     
     def affects(self):
-        return [ BlackHole, Empty ]
+        return [ SpaceObject.BlackHole, SpaceObject.Empty ]
     
     def completes(self):
-        return [ BlackHole ]
+        return [ SpaceObject.BlackHole ]
     
     def adds(self):
         return []
+    
+    def __repr__(self):
+        return "<Black Hole Constraint>"
+    
+    def __str__(self):
+        return "Black Hole Constraint"
 
-twelve_board_constraints = [CometConstraint(12), PlanetXConstraint(), GasCloudConstraint(), AsteroidConstraint()]
-eighteen_board_constraints = [CometConstraint(18), PlanetXConstraint(), GasCloudConstraint(), \
-                              DwarfPlanetConstraint(6), AsteroidConstraint() ]
-twentyfour_board_constraints = [PlanetXConstraint(), GasCloudConstraint(), CometConstraint(24), \
-                                DwarfPlanetConstraint(6), BlackHoleConstraint(), AsteroidConstraint() ]
+twelve_board_constraints = [CometConstraint(12), AsteroidConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
+eighteen_board_constraints = [CometConstraint(18), AsteroidConstraint(), DwarfPlanetConstraint(6), \
+                              PlanetXConstraint(), GasCloudConstraint() ]
+twentyfour_board_constraints = [ CometConstraint(24), AsteroidConstraint(), DwarfPlanetConstraint(6), \
+                                BlackHoleConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
 
 twelve_board_numbers = {
-    PlanetX: 1,
-    Empty: 2,
-    GasCloud: 2,
-    DwarfPlanet: 1,
-    Asteroid: 4,
-    Comet: 2
+    SpaceObject.PlanetX: 1,
+    SpaceObject.Empty: 2,
+    SpaceObject.GasCloud: 2,
+    SpaceObject.DwarfPlanet: 1,
+    SpaceObject.Asteroid: 4,
+    SpaceObject.Comet: 2
 }
 
 eighteen_board_numbers = {
-    PlanetX: 1,
-    Empty: 5,
-    GasCloud: 2,
-    DwarfPlanet: 4,
-    Asteroid: 4,
-    Comet: 2
+    SpaceObject.PlanetX: 1,
+    SpaceObject.Empty: 5,
+    SpaceObject.GasCloud: 2,
+    SpaceObject.DwarfPlanet: 4,
+    SpaceObject.Asteroid: 4,
+    SpaceObject.Comet: 2
 }
 
 twentyfour_board_numbers = {
-    PlanetX: 1,
-    Empty: 6,
-    GasCloud: 3,
-    DwarfPlanet: 4,
-    Asteroid: 6,
-    Comet: 3,
-    BlackHole: 1
+    SpaceObject.PlanetX: 1,
+    SpaceObject.Empty: 6,
+    SpaceObject.GasCloud: 3,
+    SpaceObject.DwarfPlanet: 4,
+    SpaceObject.Asteroid: 6,
+    SpaceObject.Comet: 3,
+    SpaceObject.BlackHole: 1
 }
-
-
+    
 class BoardType:
     def __init__(self, constraints, num_objects):
         self.constraints = constraints
@@ -520,9 +610,8 @@ class BoardType:
     
     def unconstrained_objects(self):
         obj_list = []
-        for obj_type in self.num_objects:
-            obj = obj_type()
-            for i in range(self.num_objects[obj_type]):
+        for obj in self.num_objects:
+            for i in range(self.num_objects[obj]):
                 obj_list.append(obj)
         random.shuffle(obj_list)
         return obj_list
@@ -544,23 +633,22 @@ class BoardType:
         new_num_objects = copy(self.num_objects)
         for obj in board:
             if obj is not None:
-                new_num_objects[type(obj)] -= 1
+                new_num_objects[obj] -= 1
         return new_num_objects
     
     def _list_objects(self, num_objects):
         objs = []
-        for object_type in num_objects:
-            t = object_type()
-            for i in range(num_objects[object_type]):
-                objs.append(t)
+        for obj in num_objects:
+            for i in range(num_objects[obj]):
+                objs.append(obj)
         return objs
     
     def _relevant_constraints(self, objects):
         constraints = set()
         constraints_for_types = {}
         
-        for obj_type in self.num_objects:
-            constraints_for_types[obj_type] = []
+        for obj in self.num_objects:
+            constraints_for_types[obj] = []
         
         for constraint in self.constraints:
             for effected in constraint.affects():
@@ -568,18 +656,19 @@ class BoardType:
                     constraints_for_types[effected].append(constraint)
    
         for obj in objects:
-            constraints.update(constraints_for_types[type(obj)])
+            constraints.update(constraints_for_types[obj])
         
         return constraints
 
     def generate_all_boards(self, parallel=None):
         constraints = sorted(self.constraints, key=lambda c: (len(c.affects()), len(c.adds())))
-        print(constraints)
+        print("Constraints:")
+        print("\n".join(str(c) for c in constraints))
         boards = [Board([None] * self.board_length)]
         next_boards = []
         
         for i, constraint in enumerate(constraints):
-            print("Working on constraint " + str(i+1) + "/" + str(len(constraints)))
+            print("Working on constraint " + str(i+1) + "/" + str(len(constraints)) + ": " + str(constraint))
             for j, board in enumerate(boards):
                 print("Processing board " + str(j+1) + "/" + str(len(boards)), end="\r")
                 new_num_objects = self._subtract_num_objects(board)
@@ -610,6 +699,138 @@ class BoardType:
                     next_boards.append(board_copy)
         print()
         return next_boards
+    
+    def generate_boards_to_file(self, filename, chunk_size=float('inf'), parallel=None):
+        constraints = sorted(self.constraints, key=lambda c: (len(c.affects()), len(c.adds())))
+        print("Constraints:", flush=True)
+        print("\n".join(str(c) for c in constraints), flush=True)
+        print(flush=True)
+        
+        boards_file = None
+        total_chunks = 1
+        next_boards_file = open("tmp_boards_0.b", "w")
+        boards = [Board([None] * self.board_length)]
+        last_boards = 1
+        
+        for i, constraint in enumerate(constraints):
+            print("Working on constraint " + str(i+1) + "/" + str(len(constraints)) + ": " + str(constraint), flush=True)
+            more_boards = True
+            chunk = 0
+            num_boards = 0
+            last_update = 0
+            
+            while more_boards:
+                if len(boards) == 0:
+                    if i == 0:
+                        more_boards = False
+                        break
+                
+                    while len(boards) < chunk_size:
+                        board_str = boards_file.readline().rstrip("\r\n")
+                        if len(board_str) == 0:
+                            more_boards = False
+                            break
+                        else:
+                            boards.append(Board.parse(board_str))
+
+                #print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
+                for j, board in enumerate(boards):
+                    #print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
+                    #      ", board " + str(j+1) + "/" + str(len(boards)), end="         \r")
+                    new_num_objects = self._subtract_num_objects(board)
+                    new_boards = constraint.fill_board(board, new_num_objects)
+                    for new_board in new_boards:
+                        num_boards += 1
+                        next_boards_file.write(str(new_board) + "\n")
+                        
+                    current_board = j + chunk_size * chunk + 1
+                    current_percentage = int(current_board * 100/last_boards)
+                    if current_percentage > last_update:
+                        print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
+                        last_update = current_percentage
+                
+                boards = []
+                chunk += 1
+            print(flush=True)
+            
+            next_boards_file.close()
+
+            if i == 0 and parallel is not None:
+                index, cores = parallel
+                with open("tmp_boards_0.b", "r") as f:
+                    next_boards = f.readlines()
+                next_boards = [board.rstrip("\r\n") for i, board in enumerate(next_boards) if i % cores == index]
+                num_boards = len(next_boards)
+                with open("tmp_boards_0.b", "w") as f:
+                    f.write("\n".join(next_boards) + "\n")
+                
+            if boards_file:
+                boards_file.close()
+                os.remove("tmp_boards_" + str(i-1) + ".b")            
+            
+            boards_file = open("tmp_boards_" + str(i) + ".b", "r")
+            if i + 1 < len(constraints):
+                next_boards_file = open("tmp_boards_" + str(i+1) + ".b", "w")
+            boards = []
+
+            total_chunks = max(math.ceil(num_boards/chunk_size), 1)
+            last_boards = num_boards
+        
+        if boards_file:
+            boards_file.close()
+            
+        next_boards_file.close()
+        
+        boards_file = open("tmp_boards_" + str(len(constraints)-1) + ".b", "r")
+        boards = []
+        final_boards_file = open(filename, "w")
+        
+        more_boards = True
+        
+        print("Finishing boards with remaining objects", flush=True)
+        chunk = 0
+        last_update = 0
+        while more_boards:
+            if len(boards) == 0:
+                while len(boards) < chunk_size:
+                    board_str = boards_file.readline().rstrip("\r\n")
+                    if len(board_str) == 0:
+                        more_boards = False
+                        break
+                    else:
+                        boards.append(Board.parse(board_str))
+            
+            #print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
+            for i, board in enumerate(boards):
+                #print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
+                #      ", board " + str(i+1) + "/" + str(len(boards)), end="        \r")
+                new_num_objects = self._subtract_num_objects(board)
+                remaining_objects = self._list_objects(new_num_objects)
+                relevant_constraints = self._relevant_constraints(remaining_objects)
+                perms = set(itertools.permutations(remaining_objects))
+
+                for perm in perms:
+                    board_copy = board.copy()
+                    j = 0
+                    for k, obj in enumerate(board):
+                        if board[k] is None:
+                            board_copy[k] = perm[j]
+                            j += 1
+                    if board_copy.check_constraints(relevant_constraints):
+                        final_boards_file.write(str(board_copy) + "\n")
+                                        
+                current_board = i + chunk_size * chunk + 1
+                current_percentage = int(current_board * 100/last_boards)
+                if current_percentage > last_update:
+                    print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
+                    last_update = current_percentage
+                    
+            boards = []
+            chunk += 1
+        print(flush=True)
+        boards_file.close()
+        os.remove("tmp_boards_" + str(len(constraints)-1) + ".b")
+        final_boards_file.close()
 
 twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers)
 eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers)
@@ -621,7 +842,7 @@ sector_types = {
     24: twentyfour_type
 }
 
-help_string = "Usage: python generate_boards.py [number of sectors] [core number 0...n-1] [number of cores n] [output file name (pickle)]"
+help_string = "Usage: python generate_boards.py [number of sectors] [core number 0...n-1] [number of cores n] [# boards per chunk] [output file name]"
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -635,14 +856,11 @@ if __name__ == "__main__":
             core_num = int(sys.argv[2])
             num_cores = int(sys.argv[3])
             parallel = (core_num, num_cores)
-            filename = sys.argv[4]
+            chunk_size = int(sys.argv[4])
+            filename = sys.argv[5]
             
-            valid_boards = board_type.generate_all_boards(parallel)
-            
-            with open(filename, "wb") as f:
-                pickle.dump(valid_boards, f)
-            
-            print("Added " + str(len(valid_boards)) + " boards to " + filename)
-        except:
+            board_type.generate_boards_to_file(filename, parallel=parallel, chunk_size=chunk_size)
+        except Exception as e:
+            print(e)
             print(help_string)
 

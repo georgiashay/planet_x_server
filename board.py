@@ -1,48 +1,83 @@
-class SpaceObject:
-    def __init__(self):
-        self.short_name = "~"
-        self.long_name = "N/A"
+from copy import copy, deepcopy
+from enum import Enum
+
+class SpaceObject(Enum):
+    Empty = 0
+    Comet = 1
+    Asteroid = 2
+    DwarfPlanet = 3
+    PlanetX = 4
+    GasCloud = 5
+    BlackHole = 6
+    
+    def initial(self):
+        if self is SpaceObject.Empty:
+            return "E"
+        elif self is SpaceObject.Comet:
+            return "C"
+        elif self is SpaceObject.Asteroid:
+            return "A"
+        elif self is SpaceObject.DwarfPlanet:
+            return "D"
+        elif self is SpaceObject.PlanetX:
+            return "X"
+        elif self is SpaceObject.GasCloud:
+            return "G"
+        elif self is SpaceObject.BlackHole:
+            return "B"
+        
+    def name(self):
+        if self is SpaceObject.Empty:
+            return "empty sector"
+        elif self is SpaceObject.Comet:
+            return "comet"
+        elif self is SpaceObject.Asteroid:
+            return "asteroid"
+        elif self is SpaceObject.DwarfPlanet:
+            return "dwarf planet"
+        elif self is SpaceObject.PlanetX:
+            return "Planet X"
+        elif self is SpaceObject.GasCloud:
+            return "gas cloud"
+        elif self is SpaceObject.BlackHole:
+            return "black hole"
+    
+    def plural(self):
+        return self.name() + "s"
+    
+    def singular(self):
+        if self is SpaceObject.PlanetX:
+            return self.name()
+        else:
+            return "the " + self.name()
+        
+    def any_of(self, num_object):
+        if num_object == 1:
+            return self.singular()
+        else:
+            return self.one() + " " + self.name()
+    
+    def one(self):
+        if self is SpaceObject.Empty:
+            return "an"
+        elif self is SpaceObject.Comet:
+            return "a"
+        elif self is SpaceObject.Asteroid:
+            return "an"
+        elif self is SpaceObject.DwarfPlanet:
+            return "a"
+        elif self is SpaceObject.PlanetX:
+            return "a"
+        elif self is SpaceObject.GasCloud:
+            return "a"
+        elif self is SpaceObject.BlackHole:
+            return "a"
     
     def __repr__(self):
-        return "<" + self.long_name + ">"
+        return "<" + self.name() + ">"
         
     def __str__(self):
-        return self.short_name
-
-class Comet(SpaceObject):
-    def __init__(self):
-        self.short_name = "C"
-        self.long_name = "Comet"
-        
-class Asteroid(SpaceObject):
-    def __init__(self):
-        self.short_name = "A"
-        self.long_name = "Asteroid"
-
-class Empty(SpaceObject):
-    def __init__(self):
-        self.short_name = "[]"
-        self.long_name = "Empty Sector"
-
-class DwarfPlanet(SpaceObject):
-    def __init__(self):
-        self.short_name = "D"
-        self.long_name = "Dwarf Planet"
-
-class PlanetX(SpaceObject):
-    def __init__(self):
-        self.short_name = "X"
-        self.long_name = "Planet X"
-        
-class GasCloud(SpaceObject):
-    def __init__(self):
-        self.short_name = "G"
-        self.long_name = "Gas Cloud"
-
-class BlackHole(SpaceObject):
-    def __init__(self):
-        self.short_name = "B"
-        self.long_name = "Black Hole"
+        return self.initial()
 
 class Board:
     def __init__(self, objects=[]):
@@ -52,13 +87,7 @@ class Board:
             self.objects = objects
             
     def __str__(self):
-        s = "["
-        for obj in self.objects:
-            s += str(obj)
-            s += ", "
-        s = s[:-2]
-        s += "]"
-        return s
+        return "".join("-" if obj is None else str(obj) for obj in self.objects)
     
     def __repr__(self):
         return "<Board " + str(self) + ">"
@@ -86,3 +115,36 @@ class Board:
     
     def copy(self):
         return Board(deepcopy(self.objects))
+    
+    def num_objects(self):
+        objects = {}
+        for obj in self.objects:
+            if obj in objects:
+                objects[obj] += 1
+            else:
+                objects[obj] = 1
+        return objects
+    
+    @classmethod
+    def parse(self, board_string):
+        objects = []
+        for char in board_string:
+            if char == "E":
+                objects.append(SpaceObject.Empty)
+            elif char == "C":
+                objects.append(SpaceObject.Comet)
+            elif char == "A":
+                objects.append(SpaceObject.Asteroid)
+            elif char == "D":
+                objects.append(SpaceObject.DwarfPlanet)
+            elif char == "X":
+                objects.append(SpaceObject.PlanetX)
+            elif char == "G":
+                objects.append(SpaceObject.GasCloud)
+            elif char == "B":
+                objects.append(SpaceObject.BlackHole)
+            elif char == "-":
+                objects.append(None)
+            else:
+                return None
+        return Board(objects)
