@@ -82,9 +82,10 @@ class SpaceObject(Enum):
 class Board:
     def __init__(self, objects=[]):
         if objects is None:
-            pass
+            self.objects = []
         else:
             self.objects = objects
+        self.num_objs = self._calc_num_objects()
             
     def __str__(self):
         return "".join("-" if obj is None else str(obj) for obj in self.objects)
@@ -105,7 +106,10 @@ class Board:
     
     def __setitem__(self, i, item):
         x = i % len(self)
+        if self.objects[x] is not None:
+            self.num_objs[self.objects[x]] -= 1
         self.objects[x] = item
+        self.num_objs[item] += 1
     
     def check_constraints(self, constraints):
         for constraint in constraints:
@@ -116,7 +120,7 @@ class Board:
     def copy(self):
         return Board(deepcopy(self.objects))
     
-    def num_objects(self):
+    def _calc_num_objects(self):
         objects = {}
         for obj in self.objects:
             if obj in objects:
@@ -124,6 +128,9 @@ class Board:
             else:
                 objects[obj] = 1
         return objects
+    
+    def num_objects(self):
+        return self.num_objs
     
     @classmethod
     def parse(self, board_string):
