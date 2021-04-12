@@ -832,9 +832,9 @@ class BoardType:
         os.remove("tmp_boards_" + str(len(constraints)-1) + ".b")
         final_boards_file.close()
 
-twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers)
-eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers)
-twentyfour_type = BoardType(twentyfour_board_constraints, twentyfour_board_numbers)
+twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers, 6, 1)
+eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers, 6, 2)
+twentyfour_type = BoardType(twentyfour_board_constraints, twentyfour_board_numbers, 7, 3)
 
 sector_types = {
     12: twelve_type,

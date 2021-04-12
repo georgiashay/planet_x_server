@@ -7,8 +7,11 @@ class Constraint:
     def is_satisfied(self, board):
         return True
 
-    def is_immediatetly_limiting(self):
+    def is_immediately_limiting(self):
         return False
+
+    def disallowed_sectors(self):
+        return []
     
     def num_object_types(self):
         return 1
@@ -53,6 +56,10 @@ class CometConstraint(Constraint):
     def is_immediately_limiting(self):
         return True
     
+    def disallowed_sectors(self):
+        disallowed = [i for i in range(self.board_length) if (i+1) not in self.prime_positions]
+        return [(SpaceObject.Comet, disallowed)]
+    
     def num_object_types(self):
         return 1
     
@@ -95,6 +102,9 @@ class AsteroidConstraint(Constraint):
 
     def is_immediately_limiting(self):
         return False
+    
+    def disallowed_sectors(self):
+        return []
     
     def num_object_types(self):
         return 1
@@ -175,6 +185,9 @@ class NoConstraint(Constraint):
     def is_immediately_limiting(self):
         return False
     
+    def disallowed_sectors(self):
+        return []
+    
     def num_object_types(self):
         return 0
     
@@ -209,6 +222,9 @@ class GasCloudConstraint(Constraint):
     
     def is_immediately_limiting(self):
         return False
+    
+    def disallowed_sectors(self):
+        return []
     
     def num_object_types(self):
         return 2
@@ -280,6 +296,9 @@ class PlanetXConstraint(Constraint):
     def is_immediately_limiting(self):
         return False
     
+    def disallowed_sectors(self):
+        return []
+    
     def num_object_types(self):
         return 3
     
@@ -346,6 +365,9 @@ class DwarfPlanetConstraint(Constraint):
     def is_immediately_limiting(self):
         return False
     
+    def disallowed_sectors(self):
+        return []
+    
     def num_object_types(self):
         return 1
     
@@ -406,6 +428,9 @@ class BlackHoleConstraint(Constraint):
     
     def is_immediately_limiting(self):
         return False
+    
+    def disallowed_sectors(self):
+        return []
     
     def num_object_types(self):
         return 2

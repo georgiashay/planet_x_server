@@ -109,7 +109,10 @@ class Board:
         if self.objects[x] is not None:
             self.num_objs[self.objects[x]] -= 1
         self.objects[x] = item
-        self.num_objs[item] += 1
+        if item in self.num_objs:
+            self.num_objs[item] += 1
+        else:
+            self.num_objs[item] = 1
     
     def check_constraints(self, constraints):
         for constraint in constraints:
