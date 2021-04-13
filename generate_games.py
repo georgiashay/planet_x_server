@@ -1,48 +1,5 @@
 from game import *
-
-twelve_board_constraints = [CometConstraint(12), AsteroidConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
-eighteen_board_constraints = [CometConstraint(18), AsteroidConstraint(), DwarfPlanetConstraint(6), \
-                              PlanetXConstraint(), GasCloudConstraint() ]
-twentyfour_board_constraints = [ CometConstraint(24), AsteroidConstraint(), DwarfPlanetConstraint(6), \
-                                BlackHoleConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
-
-twelve_board_numbers = {
-    SpaceObject.PlanetX: 1,
-    SpaceObject.Empty: 2,
-    SpaceObject.GasCloud: 2,
-    SpaceObject.DwarfPlanet: 1,
-    SpaceObject.Asteroid: 4,
-    SpaceObject.Comet: 2
-}
-
-eighteen_board_numbers = {
-    SpaceObject.PlanetX: 1,
-    SpaceObject.Empty: 5,
-    SpaceObject.GasCloud: 2,
-    SpaceObject.DwarfPlanet: 4,
-    SpaceObject.Asteroid: 4,
-    SpaceObject.Comet: 2
-}
-
-twentyfour_board_numbers = {
-    SpaceObject.PlanetX: 1,
-    SpaceObject.Empty: 6,
-    SpaceObject.GasCloud: 3,
-    SpaceObject.DwarfPlanet: 4,
-    SpaceObject.Asteroid: 6,
-    SpaceObject.Comet: 3,
-    SpaceObject.BlackHole: 1
-}
-
-twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers, 6, 1)
-eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers, 6, 2)
-twentyfour_type = BoardType(twentyfour_board_constraints, twentyfour_board_numbers, 7, 3)
-
-sector_types = {
-    12: twelve_type,
-    18: eighteen_type,
-    24: twentyfour_type
-}
+from board_type import sector_types
 
 help_string = "Usage: python generate_games.py [number of sectors] [input file name ] [output file name] [# boards per chunk]"
 

@@ -26,6 +26,23 @@ class SpaceObject(Enum):
         elif self is SpaceObject.BlackHole:
             return "B"
         
+    @classmethod
+    def parse(cls, s):
+        if s == "E":
+            return SpaceObject.Empty
+        elif s == "C":
+            return SpaceObject.Comet
+        elif s == "A":
+            return SpaceObject.Asteroid
+        elif s == "D":
+            return SpaceObject.DwarfPlanet
+        elif s == "X":
+            return SpaceObject.PlanetX
+        elif s == "G":
+            return SpaceObject.GasCloud
+        elif s == "B":
+            return SpaceObject.BlackHole
+        
     def name(self):
         if self is SpaceObject.Empty:
             return "empty sector"
