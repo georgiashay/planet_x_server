@@ -7,3 +7,5 @@ creds.json
 *.csr
 *.crt
 *.key
+Data/
+Test/
