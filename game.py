@@ -1,6 +1,7 @@
 import random
 from enum import Enum
 import itertools
+import json
 
 from board import *
 from board_type import *
@@ -71,6 +72,14 @@ class RuleQualifier(Enum):
             return RuleQualifier.AT_LEAST_ONE
         elif s == "E":
             return RuleQualifier.EVERY
+    
+    def to_json(self):
+        if self is RuleQualifier.NONE:
+            return "NONE"
+        elif self is RuleQualifier.AT_LEAST_ONE:
+            return "AT_LEAST_ONE"
+        elif self is RuleQualifier.EVERY:
+            return "EVERY"
 
 class BandRule(SelfRule):
     def __init__(self, space_object, band_size):
@@ -140,6 +149,15 @@ class BandRule(SelfRule):
         space_object = SpaceObject.parse(s[1])
         band_size = int(s[2])
         return cls(space_object, band_size)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "BAND",
+            "spaceObject": self.space_object.to_json(),
+            "numSectors": self.band_size,
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class OppositeRule(RelationRule):
     def __init__(self, space_object1, space_object2, qualifier):
@@ -251,6 +269,15 @@ class OppositeRule(RelationRule):
         space_object2 = SpaceObject.parse(s[2])
         qualifier = RuleQualifier.parse(s[3])
         return cls(space_object1, space_object2, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "OPPOSITE",
+            "spaceObject1": self.space_object1.to_json(),
+            "spaceObject2": self.space_object2.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class OppositeSelfRule(SelfRule):
     def __init__(self, space_object, qualifier):
@@ -320,6 +347,14 @@ class OppositeSelfRule(SelfRule):
         space_object = SpaceObject.parse(s[1])
         qualifier = RuleQualifier.parse(s[2])
         return cls(space_object, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "OPPOSITE_SELF",
+            "spaceObject": self.space_object.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class AdjacentRule(RelationRule):
     def __init__(self, space_object1, space_object2, qualifier):
@@ -434,6 +469,15 @@ class AdjacentRule(RelationRule):
         space_object2 = SpaceObject.parse(s[2])
         qualifier = RuleQualifier.parse(s[3])
         return cls(space_object1, space_object2, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "ADJACENT",
+            "spaceObject1": self.space_object1.to_json(),
+            "spaceObject2": self.space_object2.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class AdjacentSelfRule(SelfRule):
     def __init__(self, space_object, qualifier):
@@ -498,6 +542,14 @@ class AdjacentSelfRule(SelfRule):
         space_object = SpaceObject.parse(s[1])
         qualifier = RuleQualifier.parse(s[2])
         return cls(space_object, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "ADJACENT_SELF",
+            "spaceObject": self.space_object.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class WithinRule(RelationRule):
     def __init__(self, space_object1, space_object2, qualifier, num_sectors):
@@ -653,6 +705,16 @@ class WithinRule(RelationRule):
         qualifier = RuleQualifier.parse(s[3])
         num_sectors = int(s[4])
         return cls(space_object1, space_object2, qualifier, num_sectors)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "WITHIN",
+            "spaceObject1": self.space_object1.to_json(),
+            "spaceObject2": self.space_object2.to_json(),
+            "numSectors": self.num_sectors,
+            "qualifier": self.qualifier.to_json(),
+            "text": self.text(board)
+        }
 
 class EliminationData:
     def __init__(self, space_object, minimum, goal, need_eliminated, already_eliminated):
@@ -667,6 +729,9 @@ class Equinox(Enum):
     SPRING = 1
     SUMMER = 2
     FALL = 3
+    
+    def to_json(self):
+        return self.name
 
 class EliminationClue:
     def __init__(self, sector_number, eliminated_object):
@@ -695,6 +760,13 @@ class EliminationClue:
     def __str__(self):
         return "Sector " + str(self.sector_num+1) + " does not contain " + self.eliminated_obj.one() + \
                 " " + self.eliminated_obj.name() + "."
+    
+    def to_json(self):
+        return {
+            "sector": self.sector_num,
+            "eliminatedObject": self.eliminated_obj.to_json(),
+            "text": str(self)
+        }
 
 class StartingInformation:
     def __init__(self, clues):
@@ -773,6 +845,14 @@ class StartingInformation:
                 equinox_clues.append(EliminationClue.parse(clue_str[i:i+2]))
             clues[equinox] = equinox_clues
         return cls(clues)
+    
+    def to_json(self):
+        return {
+            equinox.to_json(): [
+                clue.to_json() for clue in self.clues[equinox]
+            ]
+            for equinox in self.clues
+        }
 
 class Research:
     MAX_SINGULAR_RULES = 2
@@ -863,6 +943,9 @@ class Research:
         rule_strs = s.split("|")
         rules = [Rule.parse(rule_str) for rule_str in rule_strs]
         return cls(rules)
+    
+    def to_json(self, board):
+        return [rule.to_json(board) for rule in self.rules]
 
 class Conference:
     RELATION_RULES = [OppositeRule, AdjacentRule, WithinRule]
@@ -952,6 +1035,9 @@ class Conference:
         rule_strs = s.split("|")
         rules = [Rule.parse(rule_str) for rule_str in rule_strs]
         return cls(rules)
+    
+    def to_json(self, board):
+        return [rule.to_json(board) for rule in self.rules]
 
 class Game:
     def __init__(self, board, starting_info, research, conference):
@@ -998,46 +1084,11 @@ class Game:
         conference = Conference.parse(components[3])
         starting_info = StartingInformation.parse(components[4])
         return cls(board, starting_info, research, conference)
-
-class GameGenerator:
-    @classmethod
-    def generate_games(cls, board_type, input_filename, output_filename, chunk_size=float('inf'), parallel=None):
-        with open(input_filename) as f:
-            for i, line in enumerate(f):
-                pass
-            num_boards = i+1
-                        
-        board_file = open(input_filename, "r")        
-        game_file = open(output_filename, "w")
-        
-        boards = []
-        more_boards = True
-        
-        current_board = 0
-        last_update = 0
-        chunk = 0
-        while more_boards:
-            if len(boards) == 0:
-                while len(boards) < chunk_size:
-                    board_str = board_file.readline().rstrip("\r\n")
-                    if len(board_str) == 0:
-                        more_boards = False
-                        break
-                    else:
-                        boards.append(Board.parse(board_str))
-            
-            for board in boards:
-                game = Game.generate_from_board(board, board_type)
-                if game is not None:
-                    game_file.write(game.code() + "\n")
-                    
-                current_board += 1
-                current_percentage = round((current_board + 1)*100/num_boards, 2)
-                if current_percentage > last_update:
-                    print(str(current_percentage) + "% complete " + str(current_board+1) + "/" + str(num_boards))
-                    last_update = current_percentage
-            
-            boards = []
-        
-        board_file.close()
-        game_file.close()
+    
+    def to_json(self):
+        return {
+            "board": self.board.to_json(),
+            "research": self.research.to_json(self.board),
+            "conference": self.conference.to_json(self.board),
+            "startingInformation": self.starting_info.to_json()
+        }

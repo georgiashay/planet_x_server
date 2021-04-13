@@ -1,4 +1,4 @@
-from game import *
+from game_generator import GameGenerator
 from board_type import sector_types
 
 help_string = "Usage: python generate_games.py [number of sectors] [input file name ] [output file name] [# boards per chunk]"

@@ -95,6 +95,12 @@ class SpaceObject(Enum):
         
     def __str__(self):
         return self.initial()
+    
+    def to_json(self):
+        return {
+            "initial": self.initial(),
+            "name": self.name()
+        }
 
 class Board:
     def __init__(self, objects=[]):
@@ -174,4 +180,14 @@ class Board:
                 objects.append(None)
             else:
                 return None
-        return Board(objects)
+        return Board(objects)  
+        
+    def to_json(self):
+        return {
+            "objects": [obj.to_json() for obj in self.objects],
+            "size": len(self),
+            "numObjects": {
+                space_object.initial(): self.num_objects()[space_object]
+                for space_object in self.num_objects()
+            }
+        }
