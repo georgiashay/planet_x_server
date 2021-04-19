@@ -8,34 +8,48 @@ from game import *
 import db_ops
 
 def retrieve_game(game_code):
+    """
+    Get a json game from a game code
+    """
     game = db_ops.get_game(game_code)
-    return {
-        "game_code": game_code,
-        "game": game.to_json()
-    }
+    if game is not None:
+        return {
+            "gameCode": game_code,
+            "game": game.to_json()
+        }
+    else:
+        return {
+            "gameCode": None,
+            "game": None
+        }
 
 def create_game():
+    """
+    Choose a random game
+    """
     game_code, game = db_ops.pick_game()
     return {
-        "game_code": game_code,
+        "gameCode": game_code,
         "game": game.to_json()
     }
 
 class PlanetXHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/creategame':
+        if self.path == "/creategame":
             self.send_response(200)
-            self.send_header('Content-type','application/json')
+            self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(create_game()).encode("utf8")) 
-        elif None != re.search('/joingame/*', self.path):
-            game_code = self.path.split('/')[-1]
+        elif None != re.search("/joingame/*", self.path):
+            game_code = self.path.split("/")[-1]
             self.send_response(200)
-            self.send_header('Content-type','application/json')
+            self.send_header("Content-type","application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(retrieve_game(game_code)).encode("utf8")) 
 
-server_address = ('localhost', 4443)
+server_address = ('0.0.0.0', 8000)
 httpd = http.server.HTTPServer(server_address, PlanetXHttpRequestHandler)
 # httpd.socket = ssl.wrap_socket(httpd.socket,
 #                                server_side=True,

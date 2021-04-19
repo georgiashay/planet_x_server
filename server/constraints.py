@@ -1,25 +1,75 @@
 from board import *
 
 class Constraint:
+    """
+    Represents a board constraint, i.e. ways that objects must be placed on a board
+    """
     def __init__(self):
         pass
     
     def is_satisfied(self, board):
+        """
+        Checks whether a board meets this constraint. Returns true if constraint is met.
+        """
         return True
 
     def is_immediately_limiting(self):
+        """
+        Returns true if this constraint limits the positions the space object can be in
+        even when no objects are on the board.
+        """
         return False
 
     def disallowed_sectors(self):
+        """
+        If the constraint is immediately limited, returns the list of sector that the 
+        space object relevant to the constraint is not allowed to be in. Otherwise,
+        returns [].
+        """
         return []
     
     def num_object_types(self):
+        """
+        Returns the number of space object types affected by this constraint.
+        """
         return 1
     
-    def fill_board(self, board, num):
+    def fill_board(self, board, num_objects):
+        """
+        Given a board and the number of each space object that must appear on it,
+        fills the board in all ways possible given this constraint.
+        
+        board: A partially filled Board
+        num_objects: A dictionary mapping space objects to the number of times they
+            are supposed to appear in the board.
+            
+        Returns: a list of boards that contain the same objects as the original board,
+            plus filling in objects to meet this constraint. Returns all possible
+            such boards.
+        """
         return []
     
     def affects(self):
+        """
+        Returns a list of space objects that are affected by this rule. Note that this is
+        not the same as all of the space objects named in the constraint - e.g.
+            "All gas clouds are next to an empty sector" does not affect empty sectors,
+            since the other empty sectors may be wherever they like
+        """
+        return []
+    
+    def completes(self):
+        """
+        Returns a list of all space object that this constraint can "complete" - that is, 
+        when generating all possible boards using fill_board, this constraint will add in 
+        every object of that type.
+        """
+        return []
+        
+    def adds(self):
+        """
+        Returns a list of all space objects that can be added during fill_board
+        """
         return []
     
     def __repr__(self):
@@ -29,8 +79,17 @@ class Constraint:
         return "Constraint"
 
 class CometConstraint(Constraint):
+    """
+    A constraint representing the places that comets are allowed to be on a board,
+    i.e. only in prime sectors.
+    """
     @staticmethod
     def _generate_primes(n):
+        """
+        Generates a list of primes from 1 to n
+        
+        n: maximum of range to generate primes in
+        """
         primes = []
         for i in range(2, n+1):
             is_prime = True
@@ -43,6 +102,11 @@ class CometConstraint(Constraint):
         return primes
                     
     def __init__(self, board_length):
+        """
+        Creates a comet constraint for boards of length board_length.
+        
+        board_length: The length of the board for this constraint
+        """
         self.board_length = board_length
         self.prime_positions = self._generate_primes(board_length)
     
@@ -66,7 +130,9 @@ class CometConstraint(Constraint):
     def fill_board(self, board, num_objects):
         num_comets = num_objects[SpaceObject.Comet]
         new_boards = []
+        # Generate all permutations for comet positions
         for prime_sublist in itertools.combinations(self.prime_positions, num_comets):
+            # Puts those comets on the board if there is nothing there already
             if all(board[p-1] is None for p in prime_sublist):
                 new_board = board.copy()
                 for p in prime_sublist:
@@ -90,6 +156,10 @@ class CometConstraint(Constraint):
         return "Comet Constraint: board size " + str(self.board_length)
 
 class AsteroidConstraint(Constraint):
+    """
+    A constraint representing where asteroids can be on the board - they
+    must be next to each other 
+    """
     def __init__(self):
         pass
     
@@ -176,6 +246,9 @@ class AsteroidConstraint(Constraint):
         return "Asteroid Constraint"
 
 class NoConstraint(Constraint):
+    """
+    Empty constraint, does not constrain the board.
+    """
     def __init__(self):
         pass
     
@@ -210,6 +283,10 @@ class NoConstraint(Constraint):
         return "Empty Constraint"
 
 class GasCloudConstraint(Constraint):
+    """
+    Constraint representing where the gas clouds must be on the board - i.e.
+    next to at least one empty sector
+    """
     def __init__(self):
         pass
     
@@ -240,14 +317,20 @@ class GasCloudConstraint(Constraint):
         new_boards = []
         for i in range(start_i, len(board)):
             obj = board[i]
+            # Attempt to fill each position with a gas cloud if possible
             if obj is None:
                 if board[i-1] is SpaceObject.Empty or board[i+1] is SpaceObject.Empty:
+                    # If there is already an empty sector next to it, fill with gas
+                    # cloud and proceed
                     board_copy = board.copy()
                     board_copy[i] = SpaceObject.GasCloud
                     new_num_objects[SpaceObject.GasCloud] = num_gas_clouds - 1
                     new_boards.extend(self.fill_board(board_copy, new_num_objects, i+1))
                 elif num_empty > 0:
+                    # Otherwise there must be empty sectors left to use
                     if board[i-1] is None and board[i-2] is not SpaceObject.GasCloud:
+                        # Do not put an empty sector on the left if there is a gas cloud 
+                        # already to the left of that, to avoid duplicate boards
                         board_copy = board.copy()
                         board_copy[i] = SpaceObject.GasCloud
                         board_copy[i-1] = SpaceObject.Empty
@@ -256,6 +339,8 @@ class GasCloudConstraint(Constraint):
                         new_boards.extend(self.fill_board(board_copy, new_num_objects, i+1))
 
                     if board[i+1] is None and board[i+2] is not SpaceObject.GasCloud:
+                        # Do not put an empty sector on the right if there is a gas cloud
+                        # to the right of that, to avoid duplicate boards
                         board_copy = board.copy()
                         board_copy[i] = SpaceObject.GasCloud
                         board_copy[i+1] = SpaceObject.Empty
@@ -281,6 +366,10 @@ class GasCloudConstraint(Constraint):
         return "Gas Cloud Constraint"
 
 class PlanetXConstraint(Constraint):
+    """
+    A constraint representing where Planet X can be - i.e. not next to 
+    a dwarf planet or a black hole
+    """
     def __init__(self):
         pass
     
@@ -305,6 +394,7 @@ class PlanetXConstraint(Constraint):
     def fill_board(self, board, num_objects):
         new_boards = []
         for i, obj in enumerate(board):
+            # Try every position not filled and not next to dwarf planets or black holes
             if board[i-1] is not SpaceObject.DwarfPlanet and board[i-1] is not SpaceObject.BlackHole \
             and board[i+1] is not SpaceObject.DwarfPlanet and board[i+1] is not SpaceObject.BlackHole \
             and board[i] is None:
@@ -329,12 +419,22 @@ class PlanetXConstraint(Constraint):
         return "Planet X Constraint"
 
 class DwarfPlanetConstraint(Constraint):
+    """
+    Constraint representing where dwarf planets must be on the board - i.e. 
+    in a band
+    """
     def __init__(self, band_size):
+        """
+        Creates a dwarf planet constraint, constraining dwarf planets to be in a band
+        of band_size
+        """
         self.band_size = band_size
         
     def is_satisfied(self, board):
         longest_no_planet_run = 0
         current_run = 0
+        # For dwarf planets to be in a band of six, there must be exactly board length - band size 
+        # consecutive sectors with no dwarf planetss 
         goal = len(board) - self.band_size
         for obj in board:
             if obj is SpaceObject.DwarfPlanet:
@@ -350,6 +450,8 @@ class DwarfPlanetConstraint(Constraint):
         if longest_no_planet_run > goal:
             return False
         
+        # Continue wrapping around board until we encounter a dwarf planet
+        # This handles if the longest gap between dwarf planets wraps around the end of the board
         for obj in board:
             if obj is SpaceObject.DwarfPlanet:
                 if current_run == goal:
@@ -372,6 +474,15 @@ class DwarfPlanetConstraint(Constraint):
         return 1
     
     def _fill_band(self, board, num_dwarf_planets, band_start, i_start=None):
+        """
+        Given the start location of the dwarf planet band, fill in the remaining dwarf planets
+        in the center of the band
+        
+        board: The Board to fill, with the start and end dwarf planet in the band already filled
+        num_dwarf_planets: The number of dwarf planets to fill in the band 
+        band_start: The index of the first dwarf planet in the band
+        i_start: Dwarf planets can be filled in starting at index i_start and not before
+        """
         if i_start is None:
             i_start = band_start
             
@@ -380,23 +491,28 @@ class DwarfPlanetConstraint(Constraint):
         
         new_boards = []
         for i in range(i_start, band_start + self.band_size - num_dwarf_planets):
+            # Try every position possible for the next dwarf planet
             if board[i] is None:
                 board_copy = board.copy()
                 board_copy[i] = SpaceObject.DwarfPlanet
+                # Place dwarf planet here and then recurse to fill in remaining dwarf planets
                 new_boards.extend(self._fill_band(board_copy, num_dwarf_planets - 1, band_start, i+1))
         return new_boards
 
     
     def fill_board(self, board, num_objects):
+        # Must be at least two dwarf planets (start & end of the band)
         if num_objects[SpaceObject.DwarfPlanet] < 2:
             return []
         
         new_boards = []
         for i in range(len(board)):
+            # Try every start/end pair of dwarf planets for the band
             if board[i] is None and board[i + self.band_size - 1] is None:
                 board_copy = board.copy()
                 board_copy[i] = SpaceObject.DwarfPlanet
                 board_copy[i + self.band_size - 1] = SpaceObject.DwarfPlanet
+                # Fill in the dwarf planets inside the band
                 new_boards.extend(self._fill_band(board_copy, num_objects[SpaceObject.DwarfPlanet] - 2, i))
         return new_boards
     
@@ -416,6 +532,10 @@ class DwarfPlanetConstraint(Constraint):
         return "Dwarf Planet Constraint: band size " + str(self.band_size)
 
 class BlackHoleConstraint(Constraint):
+    """
+    Represents a constraint on the location of black holes - i.e. cannot be adjacent
+    to empty sectors
+    """
     def __init__(self):
         pass
     
