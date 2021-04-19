@@ -1,11 +1,16 @@
-import mysql.connector
 import json
+import os
 
-from board import *
-from board_type import * 
-from game import *
+import mysql.connector
 
-with open("creds.json", "r") as f:
+from .board import *
+from .board_type import * 
+from .game import *
+
+dirname = os.path.dirname(__file__)
+credsfile = os.path.join(dirname, "creds.json")
+
+with open(credsfile, "r") as f:
     creds = json.load(f)
 
 def get_connection():

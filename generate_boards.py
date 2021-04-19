@@ -1,14 +1,7 @@
-import random
-import itertools
-import pickle
-from copy import copy, deepcopy
-import sys
-from enum import Enum
-import os
-import math
+import sys 
 
-from board_type import *
-from board import *
+from server.board_type import *
+from server.board import *
 
 help_string = "Usage: python generate_boards.py [number of sectors] [core number 0...n-1] [number of cores n] [# boards per chunk] [output file name]"
 

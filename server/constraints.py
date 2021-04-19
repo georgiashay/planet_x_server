@@ -1,4 +1,6 @@
-from board import *
+import itertools
+
+from .board import *
 
 class Constraint:
     """

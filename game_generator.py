@@ -1,5 +1,5 @@
-from game import *
-import db_ops
+from server.game import *
+import server.db_ops as db_ops
 
 class GameGenerator:
     @classmethod

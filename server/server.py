@@ -2,10 +2,10 @@ import http.server
 # import http.server, ssl
 import re
 
-from board import *
-from board_type import *
-from game import *
-import db_ops
+from .board import *
+from .board_type import *
+from .game import *
+import .db_ops
 
 def retrieve_game(game_code):
     """

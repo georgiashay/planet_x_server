@@ -4,8 +4,8 @@ import sys
 import os
 import math
 
-from constraints import *
-from board import SpaceObject
+from .constraints import *
+from .board import SpaceObject
     
 class BoardType:
     """
@@ -181,7 +181,7 @@ class BoardType:
         return next_boards
     
     def generate_boards_to_file(self, filename, chunk_size=float('inf'), parallel=None):
-                """
+        """
         Generate all boards of this type by working up, i.e. adding in space objects that 
         follow each constraint until the board is full.
         

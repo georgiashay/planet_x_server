@@ -3,9 +3,9 @@ from enum import Enum
 import itertools
 import json
 
-from board import *
-from board_type import *
-from constraints import *
+from .board import *
+from .board_type import *
+from .constraints import *
 
 class Rule:
     """

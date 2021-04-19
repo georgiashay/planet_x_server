@@ -1,3 +1,5 @@
+import sys 
+
 from game_generator import GameGenerator
 
 help_string = "Usage: python upload_games.py [input file name ] [# boards per chunk]"
