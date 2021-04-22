@@ -23,48 +23,88 @@ def sum_counts(d):
         s += d[k]
     return s
     
-def _fill_no_touch(lst, is_hole):
+def _fill_no_touch(lst, holes, no_touch_objs, t=0):
     if len(lst) == 0:
-        if all(is_hole):
-            yield [None]*len(is_hole)
+        if all(holes):
+            yield [None]*len(holes)
         return
     else:
-        if is_hole[0]:
-            for p in _fill_no_touch(lst, is_hole[1:]):
-                yield [None] + p
+        if holes[0]:
+            for p in _fill_no_touch(lst, holes[1:], no_touch_objs, t+1):
+                can_come_after_hole = len(p) == 0 or p[0] != holes[0][-1]
+                if can_come_after_hole:
+                    yield [None] + p
         else:
             for i in range(len(lst)):
-                if i == 0 or lst[i] != lst[i-1]:
+                is_new_obj = (i == 0 or lst[i] != lst[i-1])
+                next_is_hole = len(holes) > 1 and holes[1] != False
+                can_come_before_hole = (not next_is_hole) or lst[i] is None or holes[1][0] == lst[i] or holes[1][0] not in no_touch_objs
+                if is_new_obj and can_come_before_hole:
                     rest = lst[:i] + lst[i+1:]
-                    for p in _fill_no_touch(rest, is_hole[1:]):
+                    for p in _fill_no_touch(rest, holes[1:], no_touch_objs, t+1):
                         if len(p) == 0 or p[0] == lst[i] or p[0] is None or lst[i] is None:
                             yield [lst[i]] + p
+                            
+def _fill_no_touch(prev, counts, holes, no_touch_objs, t=0):
+    if len(counts.keys()) == 0:
+        if all(holes):
+            if len(holes) == 0 or \
+            (holes[0][0] == prev or holes[0][0] not in no_touch_objs or prev not in no_touch_objs):
+                yield [None]*len(holes)
+        return
+    else:
+        if holes[0] and (holes[0][0] == prev or holes[0][0] not in no_touch_objs or prev not in no_touch_objs):
+            for p in _fill_no_touch(holes[0][-1], counts, holes[1:], no_touch_objs, t+1):
+                yield [None] + p
+        else:
+            first_objs = list(counts.keys())
+            for obj in first_objs:
+                if obj == prev or prev not in no_touch_objs or obj not in no_touch_objs:
+                    counts[obj] -= 1
+                    if counts[obj] == 0:
+                        del counts[obj]
+                
+                    for p in _fill_no_touch(obj, counts, holes[1:], no_touch_objs, t+1):
+                        yield [obj] + p
+            
+                    if obj in counts:
+                        counts[obj] += 1
+                    else:
+                        counts[obj] = 1
 
 def fill_no_touch(counts, board):
-    is_hole = [obj is not None and board[i-1] is None for i, obj in enumerate(board)]
-    is_hole_collapsed = [hole_val for i, hole_val in enumerate(is_hole) if hole_val or board[i] is None]
-    holes = sum(is_hole)
+    holes = []
+    in_hole = False
+    for obj in board:
+        if obj is None:
+            holes.append(False)
+            in_hole = False
+        elif in_hole:
+            holes[-1] += (obj,)
+        else:
+            in_hole = True
+            holes.append((obj,))
+                        
+    num_holes = len([val for val in holes if val != False])
     empty = len([obj for obj in board if obj is None]) - sum_counts(counts)
-    gaps = holes + empty
+    gaps = num_holes + empty
     
     if len(counts.keys()) > gaps:
         return []
-    else:
-        lst = []
-        for val in counts:
-            for i in range(counts[val]):
-                lst.append(val)
-        for i in range(empty):
-            lst.append(None)
-                    
-        for p in _fill_no_touch(lst, is_hole_collapsed):
-            if p[0] == p[-1] or p[0] is None or p[-1] is None or p[0] not in counts or p[-1] not in counts:
-                board_copy = board.copy()
-                j = 0
-                for i in range(len(board_copy)):
-                    if board[i] is None:
-                        board_copy[i] = p[j]
-                        j += 1
-                    elif board[i-1] is None:
-                        j += 1
-                yield board_copy
+    else:                     
+        put_counts = counts.copy()
+        if empty > 0:
+            put_counts[None] = empty
+        for p in _fill_no_touch(None, put_counts, holes, counts.keys()):
+            if p[0] == p[-1] or p[0] not in counts or p[-1] not in counts:
+                if holes[-1] == False or holes[0] != False or p[0] == holes[-1][-1] \
+                or p[0] not in counts or holes[-1][-1] not in counts:
+                    board_copy = board.copy()
+                    j = 0
+                    for i in range(len(board_copy)):
+                        if board[i] is None:
+                            board_copy[i] = p[j]
+                            j += 1
+                        elif board[i-1] is None:
+                            j += 1
+                    yield board_copy
