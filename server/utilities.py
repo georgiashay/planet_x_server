@@ -108,3 +108,54 @@ def fill_no_touch(counts, board):
                         elif board[i-1] is None:
                             j += 1
                     yield board_copy
+                    
+def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
+    if (i == len(board)):
+        yield []
+        return
+    
+    if board[i] != None:
+        if board[i] in no_within_objs:
+            if board[i] != prev and countdown != 0:
+                return
+            new_prev = board[i]
+            new_countdown = n
+        else:
+            new_prev = prev
+            new_countdown = countdown - 1
+            
+        for p in _fill_no_within(new_prev, new_countdown, counts, no_within_objs, board, n, i+1):
+            yield [board[i]] + p
+        return
+        
+    obj_choices = list(counts.keys())
+    for obj in obj_choices:
+        restricted_obj = obj in no_within_objs
+        if obj == prev or not restricted_obj or countdown == 0:
+            counts[obj] -= 1
+            if counts[obj] == 0:
+                del counts[obj]
+                
+            if restricted_obj:
+                new_countdown = n
+                new_prev = obj
+            else:
+                new_countdown = max(0, countdown - 1)
+                new_prev = prev
+                
+            for p in _fill_no_within(new_prev, new_countdown, counts, no_within_objs, board, n, i+1):
+                yield [obj] + p
+            
+            if obj in counts:
+                counts[obj] += 1
+            else:
+                counts[obj] = 1
+
+def fill_no_within(counts, board, n):
+    num_none = len([obj for obj in board if obj is None]) - sum_counts(counts)
+    for p in _fill_no_within(None, 0, {**counts, None: num_none}, counts.keys(), board, n, 0):
+        first_i = next(i for i, obj in enumerate(p) if obj in counts)
+        last_i = next(i for i in range(len(p) - 1, -1, -1) if p[i] in counts and p[i] != p[first_i])
+        diff = first_i + (len(p) - last_i)
+        if diff > n:
+            yield p

@@ -190,8 +190,11 @@ class Board:
             yield obj
             
     def __getitem__(self, i):
-        x = i % len(self)
-        return self.objects[x]
+        if isinstance(i, slice) :
+            return [self[ii] for ii in range(i.start or 0, i.stop, i.step or 1)]
+        else:
+            x = i % len(self)
+            return self.objects[x]
     
     def __setitem__(self, i, item):
         x = i % len(self)
