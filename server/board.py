@@ -174,7 +174,6 @@ class Board:
             self.objects = []
         else:
             self.objects = objects
-        self.num_objs = self._calc_num_objects()
             
     def __str__(self):
         return "".join("-" if obj is None else str(obj) for obj in self.objects)
@@ -191,20 +190,15 @@ class Board:
             
     def __getitem__(self, i):
         if isinstance(i, slice) :
-            return [self[ii] for ii in range(i.start or 0, i.stop, i.step or 1)]
+            return [self.objects[ii % len(self)] for ii in range(i.start or 0, i.stop or len(self), i.step or 1)]
         else:
             x = i % len(self)
             return self.objects[x]
     
     def __setitem__(self, i, item):
         x = i % len(self)
-        if self.objects[x] is not None:
-            self.num_objs[self.objects[x]] -= 1
         self.objects[x] = item
-        if item in self.num_objs:
-            self.num_objs[item] += 1
-        else:
-            self.num_objs[item] = 1
+        self.num_objs_valid = False
     
     def check_constraints(self, constraints):
         """
@@ -222,7 +216,7 @@ class Board:
         """
         Create a new Board with this same objects as this Board.
         """
-        return Board(deepcopy(self.objects))
+        return Board(copy(self.objects))
     
     def _calc_num_objects(self):
         objects = {}
@@ -238,8 +232,10 @@ class Board:
         Returns a dictionary mapping SpaceObjects to the number of times that 
         that SpaceObject appears in this board.
         """
+        if not self.num_objs_valid:
+            self.num_objs = self._cal_num_objects()
         return self.num_objs
-    
+        
     @classmethod
     def parse(self, board_string):
         """
