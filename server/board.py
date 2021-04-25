@@ -174,6 +174,8 @@ class Board:
             self.objects = []
         else:
             self.objects = objects
+           
+        self.num_objs_valid = False
             
     def __str__(self):
         return "".join("-" if obj is None else str(obj) for obj in self.objects)
@@ -233,7 +235,7 @@ class Board:
         that SpaceObject appears in this board.
         """
         if not self.num_objs_valid:
-            self.num_objs = self._cal_num_objects()
+            self.num_objs = self._calc_num_objects()
         return self.num_objs
         
     @classmethod
