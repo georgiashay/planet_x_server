@@ -1038,3 +1038,254 @@ class WithinRule(RelationRule):
             "categoryName": self.category_name(),
             "text": self.text(board)
         }
+    
+class AdjacentSelfRule(SelfRule):
+    """
+    A rule stating that an object is or is not adjacent to another of the same object
+    """
+    def __init__(self, space_object, qualifier):
+        self.space_object = space_object
+        self.qualifier = qualifier
+        
+    def __repr__(self):
+        return "<" + self.qualifier.name + " " + repr(self.space_object) + " adjacent to " \
+                + repr(self.space_object) + ">"
+    
+    def __str__(self):
+        return str(self.qualifier) + " " + self.space_object.name() + " is adjacent to another " + \
+                self.space_object.name() + "."
+    
+    def text(self, board):
+        num_object = board.num_objects()[self.space_object]
+        return self.qualifier.for_object(self.space_object, num_object) + " adjacent to another " \
+                + self.space_object.name() + "."
+   
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.qualifier == other.qualifier and self.space_object == other.space_object
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def is_satisfied(self, board):
+        adjacent_idxs = [i for i in range(len(board)) if board[i] is self.space_object
+                            and (board[i-1] is self.space_object or board[i+1] is self.space_object)]
+        
+        if self.qualifier is RuleQualifier.NONE:
+            return len(adjacent_idxs) == 0
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return len(adjacent_idxs) > 0
+        else:
+            if self.space_object in board.num_objects():
+                num_obj = board.num_objects()[self.space_object]
+            else:
+                num_obj = 0
+            return len(adjacent_idxs) == num_obj
+    
+    def is_immediately_limiting(self):
+        return False
+
+    def disallowed_sectors(self):
+        return []
+    
+    def _fill_board_none(self, board, num_objects):
+        if not self.is_satisfied(board):
+            # There are already two adjacent in this board, cannot meet rule
+            return []
+        
+        num_obj = num_objects[self.space_object]  
+        num_obj -= sum(obj is self.space_object for obj in board)
+        
+        board_perms = fill_no_self_touch(self.space_object, num_obj, board)
+        return [Board(board_objects) for board_objects in board_perms]
+    
+    def _fill_board_runs(self, board, num_obj, start_i=0):         
+        # Fill in board with runs of asteroids, starting new runs only at start_i and after
+        
+        # If there are no asteroids left, check if board is valid
+        if num_obj == 0:
+            if self.is_satisfied(board):
+                return [board]
+            else:
+                return []
+        
+        # If there is a lone asteroid, find it and immediately add another asteroid clockwise
+        for i in range(start_i - 1, len(board)):
+            obj = board[i]
+            if obj is self.space_object and board[i-1] is not self.space_object \
+            and board[i+1] is not self.space_object:
+                # Found a lone asteroid
+                new_boards = []
+                
+                # Only fill asteroid runs to the right without combining runs
+                if board[i+1] is None and board[i+2] is not self.space_object:
+                    board_copy = board.copy()
+                    board_copy[i+1] = self.space_object
+                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, start_i))
+                    
+                return new_boards
+            
+        new_boards = []
+        
+        for i in range(len(board)):
+            obj = board[i]
+            if obj is None:
+                # Continue an asteroid run without combining two runs
+                if board[i-1] is self.space_object and board[i+1] is not self.space_object:
+                    board_copy = board.copy()
+                    board_copy[i] = self.space_object
+                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, start_i))
+                # OR start a new asteroid run, if conditions allow
+                elif i >= start_i and num_obj > 1 and board[i-1] is not self.space_object \
+                and board[i+1] is not self.space_object:
+                    board_copy = board.copy()
+                    board_copy[i] = self.space_object
+                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, i+1))
+        
+        return new_boards
+    
+    def _prepare_board(self, board, num_obj, lone, run_backwards, start_i=None):
+        if start_i is None:
+            start_i = len(board) - 1
+        
+        board_ready = len(lone) == 0 and len(run_backwards) == 0
+        if board_ready:
+            return [ (num_obj, board) ]
+
+        if start_i <= 0:
+            return []
+        
+        new_boards = []
+        for i in range(start_i, -1, -1):
+            obj = board[i]
+            if obj is self.space_object:
+                if board[i-1] is not self.space_object and board[i+1] is not self.space_object:
+                    if board[i+1] is None and board[i+2] is not self.space_object:
+                        board_copy = board.copy()
+                        board_copy[i+1] = self.space_object
+                        new_lone = lone - {i}
+                        new_boards.extend(self._prepare_board(board_copy, num_obj - 1, new_lone, run_backwards, i-1))
+                        
+                if board[i-1] is None:
+                    new_run_backwards = run_backwards - { i }
+                    if board[i+1] is self.space_object:
+                        new_boards.extend(self._prepare_board(board.copy(), num_obj, lone, new_run_backwards, i-1))
+                        
+                    num_left = num_obj
+                    j = i - 1
+                    board_copy = board.copy()
+                    while num_left > 0:
+                        if board[j] is None:
+                            board_copy[j] = self.space_object
+                            num_left -= 1
+                            new_lone = lone - { j - 1 % len(board) }
+                            new_boards.extend(self._prepare_board(board_copy, num_left, new_lone, new_run_backwards, j-1))
+                            board_copy = board_copy.copy()
+                            j -= 1
+                        elif board[j] is self.space_object:
+                            j -= 1
+                        else:
+                            break
+                        
+        return new_boards
+                        
+    def _fill_board_every(self, board, num_objects):
+        num_left = num_objects[self.space_object] - sum(obj is self.space_object for obj in board)
+        lone = set(i for i, obj in enumerate(board) if obj is self.space_object
+                and board[i-1] is not self.space_object and board[i+1] is not self.space_object)
+        run_backwards = set(i for i, obj in enumerate(board) if obj is self.space_object
+                           and board[i-1] is None)
+        boards = self._prepare_board(board, num_left, lone, run_backwards)
+        new_boards = []
+        for num_obj, board in boards:
+            new_boards.extend(self._fill_board_runs(board, num_obj))
+        return new_boards
+    
+    def fill_board(self, board, num_objects):
+        if self.qualifier is RuleQualifier.NONE:
+            return self._fill_board_none(board, num_objects)
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            # Not yet supported
+            return None
+        else:  
+            return self._fill_board_every(board, num_objects)
+            
+    def affects(self):
+        if self.qualifier is RuleQualifier.NONE:
+            return [ self.space_object ]
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return []
+        else:
+            return [ self.space_object ]
+    
+    def completes(self):
+        if self.qualifier is RuleQualifier.NONE:
+            return [ self.space_object ]
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return []
+        else:
+            return [ self.space_object ]
+    
+    def adds(self):
+        return [ self.space_object ]
+    
+    @classmethod
+    def generate_rule(cls, board, constraints, space_object):
+        # Some constraints already limit this significantly and would be redundant
+        if any((isinstance(constraint, cls) and constraint == cls(space_object, constraint.qualifier))
+               or (isinstance(constraint, SectorRule) and constraint.space_object == space_object) 
+               for constraint in constraints):
+            return None
+        
+        num_obj = board.num_objects()[space_object]
+        
+        # If there's only one object it can never be adjacent to itself
+        if num_obj == 1:
+            return None
+        
+        num_adjacent = 0
+        
+        # Count how many objects are adjacent
+        for i, obj in enumerate(board):
+            if obj is space_object:
+                if board[i-1] is space_object or board[i+1] is space_object:
+                    num_adjacent += 1
+        
+        
+        # Not using every, too powerful
+        if num_adjacent == 0:
+            qualifier_options = [RuleQualifier.NONE]
+        else:
+            qualifier_options = [RuleQualifier.AT_LEAST_ONE]
+        
+        # At least one would mean every for these cases
+        if num_obj <= 2:
+            qualifier_options = [option for option in qualifier_options \
+                                if option is not RuleQualifier.AT_LEAST_ONE]
+            
+        if len(qualifier_options) == 0:
+            return None
+        
+        # Choose a random rule
+        qualifier = random.choice(qualifier_options)
+        return AdjacentSelfRule(space_object, qualifier)
+    
+    def code(self):
+        return "C" + str(self.space_object) + self.qualifier.code()
+    
+    @classmethod
+    def parse(cls, s):
+        space_object = SpaceObject.parse(s[1])
+        qualifier = RuleQualifier.parse(s[2])
+        return cls(space_object, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "ADJACENT_SELF",
+            "spaceObject": self.space_object.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "categoryName": self.category_name(),
+            "text": self.text(board)
+        }
