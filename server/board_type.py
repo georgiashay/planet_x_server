@@ -144,7 +144,7 @@ class BoardType:
             # For every board built from previous constraints, find all boards that can
             # satisfy this next constraint by adding to it.
             for j, board in enumerate(boards):
-                print("Processing board " + str(j+1) + "/" + str(len(boards)), end="\r")
+#                 print("Processing board " + str(j+1) + "/" + str(len(boards)), end="\r")
                 new_num_objects = self._subtract_num_objects(board)
                 next_boards.extend(constraint.fill_board(board, new_num_objects))
             print()
@@ -158,7 +158,7 @@ class BoardType:
         # Fill in the remaining undefined sectors 
         print("Finishing boards with remaining objects")
         for i, board in enumerate(boards):
-            print("Processing board " + str(i+1) + "/" + str(len(boards)), end="\r")
+#             print("Processing board " + str(i+1) + "/" + str(len(boards)), end="\r")
             # Find what objects need added to this board, and what constraints affect that object
             new_num_objects = self._subtract_num_objects(board)
             remaining_objects = self._list_objects(new_num_objects)

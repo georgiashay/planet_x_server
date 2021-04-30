@@ -114,7 +114,7 @@ class CometConstraint(Constraint):
     
     def is_satisfied(self, board):
         for i, obj in enumerate(board):
-            if type(obj) is SpaceObject.Comet:
+            if obj is SpaceObject.Comet:
                 if (i+1) not in self.prime_positions:
                     return False
         return True

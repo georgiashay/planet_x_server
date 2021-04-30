@@ -10,13 +10,40 @@ def _permutations_multi(lst):
                 for p in _permutations_multi(rest):
                     yield [lst[i]] + p
 
-def permutations_multi(counts):
+def permutations_multi_old(counts):
     lst = []
     for val in counts:
         for i in range(counts[val]):
             lst.append(val)
     yield from _permutations_multi(lst)
     
+def memo_counts(f):
+    memo = {}
+    
+    def helper(counts):
+        key = tuple(counts.items())
+        if key not in memo:
+            memo[key] = list(f(counts))
+        return memo[key]
+    
+    return helper
+
+@memo_counts
+def permutations_multi(counts):
+    obj_choices = False
+    for obj in counts:
+        if counts[obj] > 0:
+            obj_choices = True
+            
+            counts[obj] -= 1
+            for p in permutations_multi(counts):
+                yield [obj] + p
+            
+            counts[obj] += 1
+            
+    if not obj_choices:
+        yield []          
+        
 def sum_counts(d):
     s = 0
     for k in d:
@@ -73,19 +100,50 @@ def fill_no_touch(counts, board):
         put_counts = counts.copy()
         if empty > 0:
             put_counts[None] = empty
+        for obj in list(put_counts.keys()):
+            if put_counts[obj] == 0:
+                del put_counts[obj]
         for p in _fill_no_touch(None, put_counts, holes, counts.keys()):
-            if p[0] == p[-1] or p[0] not in counts or p[-1] not in counts:
-                if holes[-1] == False or holes[0] != False or p[0] == holes[-1][-1] \
-                or p[0] not in counts or holes[-1][-1] not in counts:
-                    board_copy = board.copy()
-                    j = 0
-                    for i in range(len(board_copy)):
-                        if board[i] is None:
-                            board_copy[i] = p[j]
-                            j += 1
-                        elif board[i-1] is None:
-                            j += 1
-                    yield board_copy
+            first_val = p[0] if holes[0] == False else holes[0][0]
+            last_val = p[-1] if holes[-1] == False else holes[-1][-1]
+
+            if first_val == last_val or first_val not in counts or last_val not in counts:
+                board_copy = board.copy()
+                j = 0
+                for i in range(len(board_copy)):
+                    if board[i] is None:
+                        board_copy[i] = p[j]
+                        j += 1
+                    elif board[i-1] is None or i == 0:
+                        j += 1
+                yield board_copy
+                
+def add_one_no_touch(obj1, obj2, num_obj1, board, start_i=0):
+    if num_obj1 == 0:
+        yield board
+        return 
+    
+    for i in range(start_i, len(board)):
+        if board[i] is None and board[i-1] != obj2 and board[i+1] != obj2:
+            board_copy = board.copy()
+            board_copy[i] = obj1
+            yield from add_one_no_touch(obj1, obj2, num_obj1 - 1, board_copy, i+1)
+
+def add_two_no_touch(obj1, obj2, num_obj1, num_obj2, board):
+    with_obj1 = add_one_no_touch(obj1, obj2, num_obj1, board)
+    for b in with_obj1:
+        yield from add_one_no_touch(obj2, obj1, num_obj2, b)
+        
+def add_one_no_self_touch(obj, num_obj, board, start_i=0):
+    if num_obj == 0:
+        yield board
+        return 
+    
+    for i in range(start_i, len(board)):
+        if board[i] is None and board[i-1] != obj and board[i+1] != obj:
+            board_copy = board.copy()
+            board_copy[i] = obj
+            yield from add_one_no_self_touch(obj, num_obj - 1, board_copy, i+2)
                     
 def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
     if (i == len(board)):

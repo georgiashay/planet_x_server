@@ -1,3 +1,311 @@
+import itertools
+import random
+import json
+from enum import Enum
+from abc import *
+
+from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch
+from .board import *
+from .board_type import *
+
+class RuleQualifier(Enum):
+    """
+    Represents a qualifier for the number of objects that follow a rule.
+    I.e. whether no objects, at least one of the type of object, or every one of 
+    a type of object follow a particular type of rjle
+    """
+    NONE = 0
+    AT_LEAST_ONE = 1
+    EVERY = 2
+    
+    def __str__(self):
+        if self is RuleQualifier.NONE:
+            return "No"
+        elif self is RuleQualifier.AT_LEAST_ONE:
+            return "At least one"
+        elif self is RuleQualifier.EVERY:
+            return "Every"
+    
+    def for_object(self, obj, num_object):
+        """
+        Returns a string representing this qualifier for a specific object
+            e.g. "No gas cloud is" or "At least one asteriod is" or "Every comet is not"
+        
+        obj: The space object 
+        num_object: How many of this space object are on the board
+        """
+        if self is RuleQualifier.NONE:
+            if num_object == 1:
+                return obj.singular()[:1].upper() + obj.singular()[1:] + " is not"
+            else:
+                return "No " + obj.name()+ " is"
+        elif self is RuleQualifier.AT_LEAST_ONE:
+            return "At least one " + obj.name() + " is"
+        elif self is RuleQualifier.EVERY:
+            if num_object == 1:
+                return obj.singular()[:1].upper() + obj.singular()[1:] + " is"
+            else:
+                return "Every " + obj.name() + " is"  
+            
+    def code(self):
+        """
+        A compact string representation of this qualifier
+        """
+        if self is RuleQualifier.NONE:
+            return "N"
+        elif self is RuleQualifier.AT_LEAST_ONE:
+            return "A"
+        elif self is RuleQualifier.EVERY:
+            return "E"
+        
+    @classmethod
+    def parse(cls, s):
+        """
+        Returns a qualifier parsed from its compact string representation
+        """
+        if s == "N":
+            return RuleQualifier.NONE
+        elif s == "A":
+            return RuleQualifier.AT_LEAST_ONE
+        elif s == "E":
+            return RuleQualifier.EVERY
+    
+    def to_json(self):
+        """
+        Returns a readable string version of this qualifier for use in a 
+        json object
+        """
+        if self is RuleQualifier.NONE:
+            return "NONE"
+        elif self is RuleQualifier.AT_LEAST_ONE:
+            return "AT_LEAST_ONE"
+        elif self is RuleQualifier.EVERY:
+            return "EVERY"
+
+class Precision(Enum):
+    """
+    Represents a qualifier for how strictly the objects follow a rule.
+    
+    STRICT = the objects follow the rule at an exact number
+    WITHIN = the objects fall within the bounds of the rule
+    """
+    STRICT = 0
+    WITHIN = 1
+    
+    def __str__(self):
+        if self is Precision.STRICT:
+            return "exactly"
+        elif self is Precision.WITHIN:
+            return "at most" 
+            
+    def code(self):
+        """
+        A compact string representation of this qualifier
+        """
+        if self is Precision.STRICT:
+            return "S"
+        elif self is Precision.WITHIN:
+            return "W"
+        
+    @classmethod
+    def parse(cls, s):
+        """
+        Returns a qualifier parsed from its compact string representation
+        """
+        if s == "S":
+            return Precision.STRICT
+        elif s == "W":
+            return Precision.WITHIN
+    
+    def to_json(self):
+        """
+        Returns a readable string version of this qualifier for use in a 
+        json object
+        """
+        if self is Precision.STRICT:
+            return "STRICT"
+        elif self is Precision.WITHIN:
+            return "WITHIN"
+
+class Rule(ABC):
+    @abstractmethod
+    def is_satisfied(self, board):
+        """
+        Checks whether a board meets this constraint. Returns true if constraint is met.
+        """
+        pass
+    
+    @abstractmethod
+    def is_immediately_limiting(self):
+        """
+        Returns true if this constraint limits the positions the space object can be in
+        even when no objects are on the board.
+        """
+        pass
+
+    @abstractmethod
+    def disallowed_sectors(self):
+        """
+        If the constraint is immediately limited, returns the list of sector that the 
+        space object relevant to the constraint is not allowed to be in. Otherwise,
+        returns [].
+        """
+        return []
+    
+    @abstractmethod
+    def fill_board(self, board, num_objects):
+        """
+        Given a board and the number of each space object that must appear on it,
+        fills the board in all ways possible given this constraint.
+        
+        board: A partially filled Board
+        num_objects: A dictionary mapping space objects to the number of times they
+            are supposed to appear in the board.
+            
+        Returns: a list of boards that contain the same objects as the original board,
+            plus filling in objects to meet this constraint. Returns all possible
+            such boards.
+        """
+        pass
+    
+    @abstractmethod
+    def affects(self):
+        """
+        Returns a list of space objects that are affected by this rule. Note that this is
+        not the same as all of the space objects named in the constraint - e.g.
+            "All gas clouds are next to an empty sector" does not affect empty sectors,
+            since the other empty sectors may be wherever they like
+        """
+        pass
+    
+    @abstractmethod
+    def completes(self):
+        """
+        Returns a list of all space object that this constraint can "complete" - that is, 
+        when generating all possible boards using fill_board, this constraint will add in 
+        every object of that type.
+        """
+        pass
+    
+    @abstractmethod
+    def adds(self):
+        """
+        Returns a list of all space objects that can be added during fill_board
+        """
+        pass
+    
+    @abstractmethod
+    def space_objects(self):
+        """
+        Returns all the space objects involved in this rule
+        """
+        pass
+    
+    @classmethod
+    @abstractmethod
+    def generate_rule(cls, board, constraints, *space_objects):
+        """
+        Generates a rule of this type for a particular board and space objects to relate 
+        to each other. Returns None if no such rule exists, or if such a rule would be 
+        redundant with the given constraints.
+        """
+        pass
+    
+    @abstractmethod
+    def code(self):
+        """
+        Return compressed string code that represents this rule
+        """
+        pass
+    
+    @classmethod
+    @abstractmethod
+    def parse(cls, s):
+        """
+        Parse a compressed string representation s into a rule of this type
+        """
+        pass
+    
+    @abstractmethod
+    def text(self, board):
+        """
+        Returns a readable text version of this rule given an input Board board.
+        """
+        pass
+    
+    @abstractmethod
+    def to_json(self, board):
+        """
+        Create a json representation of this rule, given a particular board. The json
+        representation should have the following fields:
+            - ruleType: type of the rule
+            - If the rule is a self-rule:
+                - spaceObject: the space object in the rule
+            - If the rule is a relation-rule:
+                - spaceObject1: the space object in the rule
+                - spaceObject2: the space object which spaceObject1 is related to in the rule
+            - categoryName: the name of the category the rule is in (based on types of objects)
+            - text: a readable text representation of the rule
+            - other rule-specific fields   
+        """
+        pass
+
+    @classmethod
+    def parse(cls, rule_str):
+        """
+        Parses a rule string into a rule. The first character of the
+        rule string determines what type of rule it is.
+        """
+        if rule_str[0] == "B":
+            return BandRule.parse(rule_str)
+        elif rule_str[0] == "O":
+            return OppositeRule.parse(rule_str)
+        elif rule_str[0] == "S":
+            return OppositeSelfRule.parse(rule_str)
+        elif rule_str[0] == "A":
+            return AdjacentRule.parse(rule_str)
+        elif rule_str[0] == "C":
+            return AdjacentSelfRule.parse(rule_str)
+        elif rule_str[0] == "W":
+            return WithinRule.parse(rule_str)
+        elif rule_str[0] == "P":
+            return SectorsRule.parse(rule_str)
+        
+    def category_name(self):
+        """
+        Returns the category name for the rule, e.g. "Gas Clouds & Asteroids"
+        """
+        objs = self.space_objects()
+        if objs[-1] is SpaceObject.Empty:
+            objs = objs[:-1]
+        obj_titles = [obj.category() for obj in objs]
+        return " & ".join(obj_titles)
+    
+    def __hash__(self):
+        return hash(self.code())
+    
+class RelationRule(Rule):
+    def space_objects(self):
+        return [self.space_object1, self.space_object2]
+    
+    @classmethod
+    @abstractmethod
+    def eliminate_sectors(cls, board, data, space_object1, space_object2):
+        """
+        Create a rule that will eliminate possible positions of space_object1, where 
+        space_object1 and data.elimination_object are ambiguous on survey/target
+        
+        Only the sectors in data.need_eliminated are ambiguous, and the sectors in 
+        data.already_eliminated have been eliminated by other rules. To be viable,
+        this rule must eliminate at least data.minimum sectors, and if possible 
+        should eliminate data.goal sectors.
+        """
+        pass
+    
+class SelfRule(Rule):
+    def space_objects(self):
+        return [self.space_object]
+        
 class AdjacentRule(RelationRule):
     """
     A rule stating that two objects are or aren't adjacent to one another
@@ -39,16 +347,22 @@ class AdjacentRule(RelationRule):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    def __hash__(self):
+        return hash(self.space_object1) + hash(self.space_object2) + hash(self.qualifier)
+    
     def is_satisfied(self, board):
-        adjacent_idxs = [i for i in range(len(board)) if board[i] is self.space_object1
-                            and (board[i-1] is self.space_object2 or board[i+1] is self.space_object2)]
-        
         if self.qualifier is RuleQualifier.NONE:
-            return len(adjacent_idxs) == 0
+            return not any(board[i] is self.space_object1 and \
+                           (board[i-1] is self.space_object2 or board[i+1] is self.space_object2) \
+                           for i in range(len(board)))
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
-            return len(adjacent_idxs) > 0
+            return any(board[i] is self.space_object1 and \
+                           (board[i-1] is self.space_object2 or board[i+1] is self.space_object2) \
+                           for i in range(len(board)))
         else:
-            return len(adjacent_idxs) == board.num_objects()[self.space_object1]
+            return all(board[i] is not self.space_object1 or \
+                       (board[i-1] is self.space_object2 or board[i+1] is self.space_object2) \
+                       for i in range(len(board)))
     
     def is_immediately_limiting(self):
         return False
@@ -70,8 +384,8 @@ class AdjacentRule(RelationRule):
             elif obj is self.space_object2:
                 num_obj2 -= 1
         
-        board_perms = fill_no_touch({self.space_object1: num_obj1, self.space_object2: num_obj2}, board)
-        return [Board(board_objects) for board_objects in board_perms]
+        board_perms = add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())
+        return board_perms
     
     
     def _fill_board_every(self, board, num_objects, num_objects_left, start_i=0):
@@ -336,6 +650,9 @@ class OppositeRule(RelationRule):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(self.space_object1) + hash(self.space_object2) + hash(self.qualifier)
     
     def is_satisfied(self, board):
         half = len(board) // 2
@@ -618,6 +935,9 @@ class WithinRule(RelationRule):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    def __hash__(self):
+        return hash(self.space_object1) + hash(self.space_object2) + hash(self.qualifier) + self.num_sectors
+    
     def covers(self, other):
         if isinstance(other, self.__class__):
             if self.qualifier == other.qualifier:
@@ -730,7 +1050,7 @@ class WithinRule(RelationRule):
             if obj is None or is_obj1:
                 options = 0
                 if is_obj1 or num_obj1_left > 0:
-                    if self.space_object2 in board[i-self.num_sectors:i+self.num_sectors+1]:
+                    if any(board[j] is self.space_object2 for j in range(i-self.num_sectors, i+self.num_sectors+1)):
                         # If there is already an obj2 in range, fill with obj1 and proceed
                         options += 1
                         board_copy = board.copy()
@@ -1069,6 +1389,9 @@ class AdjacentSelfRule(SelfRule):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    def __hash__(self):
+        return hash(self.space_object) + hash(self.qualifier)
+    
     def is_satisfied(self, board):
         adjacent_idxs = [i for i in range(len(board)) if board[i] is self.space_object
                             and (board[i-1] is self.space_object or board[i+1] is self.space_object)]
@@ -1098,8 +1421,8 @@ class AdjacentSelfRule(SelfRule):
         num_obj = num_objects[self.space_object]  
         num_obj -= sum(obj is self.space_object for obj in board)
         
-        board_perms = fill_no_self_touch(self.space_object, num_obj, board)
-        return [Board(board_objects) for board_objects in board_perms]
+        board_perms = add_one_no_self_touch(self.space_object, num_obj, board.copy())
+        return board_perms
     
     def _fill_board_runs(self, board, num_obj, start_i=0):         
         # Fill in board with runs of asteroids, starting new runs only at start_i and after
@@ -1289,3 +1612,549 @@ class AdjacentSelfRule(SelfRule):
             "categoryName": self.category_name(),
             "text": self.text(board)
         }
+    
+class OppositeSelfRule(SelfRule):
+    """
+    A rule stating that an object is or is not opposite to another of the same object
+    """
+    def __init__(self, space_object, qualifier):
+        self.space_object = space_object
+        self.qualifier = qualifier
+    
+    def __repr__(self):
+        return "<" + self.qualifier.name + " " + repr(self.space_object) + " opposite " \
+                + repr(self.space_object) + ">"
+    
+    def __str__(self):
+        return str(self.qualifier) + " " + self.space_object1.name() + " is directly opposite another " + \
+                self.space_object.name() + "."
+    
+    def text(self, board):
+        num_object = board.num_objects()[self.space_object]
+        return self.qualifier.for_object(self.space_object, num_object) + " directly opposite another " + \
+                self.space_object.name() + "."
+   
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.qualifier == other.qualifier and self.space_object == other.space_object
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(self.space_object) + hash(self.qualifier)
+    
+    def is_satisfied(self, board):
+        if len(board) % 2 != 0:
+            return self.qualifier is RuleQualifier.NONE
+        
+        half = len(board) // 2
+        
+        opposite_idxs = [i for i in range(len(board)) if board[i] is self.space_object
+                            and board[i+half] is self.space_object]
+        
+        if self.qualifier is RuleQualifier.NONE:
+            return len(opposite_idxs) == 0
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return len(opposite_idxs) > 0
+        else:
+            if self.space_object in board.num_objects():
+                num_obj = board.num_objects()[self.space_object]
+            else:
+                num_obj = 0
+            return len(opposite_idxs) == num_obj
+    
+    def is_immediately_limiting(self):
+        return False
+
+    def disallowed_sectors(self):
+        return []
+    
+    def _fill_board_none(self, board, num_objects):
+        if not self.is_satisfied(board):
+            # There are already two opposite in this board, cannot meet rule
+            return []
+        
+        num_obj = num_objects[self.space_object]
+        num_none = 0
+        
+        for obj in board:
+            if obj is self.space_object:
+                num_obj -= 1
+            elif obj is None:
+                num_none += 1
+        
+        num_none -= num_obj
+        
+        new_boards = []
+        
+        perms = permutations_multi({self.space_object: num_obj, None: num_none})
+        for p in perms:
+            board_copy = board.copy()
+            j = 0
+            for i in range(len(board_copy)):
+                if board_copy[i] is None:
+                    board_copy[i] = p[j]
+                    j += 1
+            if self.is_satisfied(board_copy):
+                new_boards.append(board_copy)
+        
+        return new_boards
+    
+    def _prepare_board_every(self, board):
+        new_board = board.copy()
+        half = len(board) // 2
+        
+        for i in range(half):
+            if new_board[i] is self.space_object:
+                if new_board[i+half] is None:
+                    new_board[i+half] = self.space_object
+                elif new_board[i+half] is not self.space_object:
+                    return None
+            elif new_board[i+half] is self.space_object:
+                if new_board[i] is None:
+                    new_board[i] = self.space_object
+                elif new_board[i] is not self.space_object:
+                    return None
+        
+        return new_board
+    
+    def _fill_board_every(self, board, num_obj_left, start_i=0):
+        # num_objects: how many should be on the board starting from start_i
+        # num_objects_left: how many still need to be placed
+        if num_obj_left == 0:
+            return [ board ]
+        
+        half = len(board) // 2
+        
+        new_boards = []
+        for i in range(start_i, half):
+            if board[i] is None:
+                board_copy = board.copy()
+                board_copy[i + half] = self.space_object
+                board_copy[i] = self.space_object
+
+                new_boards.extend(self._fill_board_every(board_copy, num_obj_left - 2, i+1))
+          
+        return new_boards
+    
+    def fill_board(self, board, num_objects):
+        if self.qualifier is RuleQualifier.NONE:
+            return self._fill_board_none(board, num_objects)
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            # Not yet supported
+            return None
+        else:  
+            num_obj = num_objects[self.space_object]
+            num_left = num_obj - sum(obj is self.space_object for obj in board)
+            
+            prep_board = self._prepare_board_every(board)
+            if prep_board is None:
+                return []
+            
+            num_left = num_obj - sum(obj is self.space_object for obj in prep_board)
+            
+            if num_left < 0:
+                return []
+            
+            return self._fill_board_every(prep_board, num_left)
+            
+    def affects(self):
+        if self.qualifier is RuleQualifier.NONE:
+            return [ self.space_object ]
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return []
+        else:
+            return [ self.space_object ]
+    
+    def completes(self):
+        if self.qualifier is RuleQualifier.NONE:
+            return [ self.space_object ]
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return []
+        else:
+            return [ self.space_object ]
+    
+    def adds(self):
+        return [ self.space_object ]
+    
+    @classmethod
+    def generate_rule(cls, board, constraints, space_object):
+        # Some constraints already limit this significantly and would be redundant
+        if any((isinstance(constraint, cls) and constraint == cls(space_object, constraint.qualifier))
+               or (isinstance(constraint, SectorRule) and constraint.space_object == space_object) 
+               for constraint in constraints):
+            return None
+        
+        # Board must have an even number of sectors for objects to be opposite each other
+        if len(board) % 2 != 0:
+            return None
+        
+        num_opposite = 0
+        half = int(len(board) / 2)
+        
+        num_obj = board.num_objects()[space_object]
+        
+        # If there is only one object it can't be opposite itself
+        if num_obj == 1:
+            return None
+        
+        # Count how many of this space object are opposite another one
+        for i, obj in enumerate(board):
+            if obj is space_object:
+                if board[i+half] is space_object:
+                    num_opposite += 1
+        
+        # Create possible rules
+        if num_opposite == 0:
+            # None were opposite each other
+            qualifier_options = [RuleQualifier.NONE]
+        elif num_opposite < num_obj:
+            # Some were opposite each other
+            qualifier_options = [RuleQualifier.AT_LEAST_ONE]
+        else:
+            # Every one was opposite the other - also means at least one was
+            qualifier_options = [RuleQualifier.AT_LEAST_ONE, RuleQualifier.EVERY]
+
+        # Don't use EVERY qualifier as it would be too powerful
+        qualifier_options = [option for option in qualifier_options \
+                            if option is not RuleQualifier.EVERY]
+
+        if num_obj <= 2:
+            # This would completely determine the locations given one of them, too powerful
+            qualifier_options = [option for option in qualifier_options \
+                                 if option is not RuleQualifier.AT_LEAST_ONE]
+                    
+        if len(qualifier_options) == 0:
+            return None
+        
+        # Choose a random option
+        qualifier = random.choice(qualifier_options)
+        return OppositeSelfRule(space_object, qualifier)
+    
+    def code(self):
+        return "S" + str(self.space_object) + self.qualifier.code()
+    
+    @classmethod
+    def parse(cls, s):
+        space_object = SpaceObject.parse(s[1])
+        qualifier = RuleQualifier.parse(s[2])
+        return cls(space_object, qualifier)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "OPPOSITE_SELF",
+            "spaceObject": self.space_object.to_json(),
+            "qualifier": self.qualifier.to_json(),
+            "categoryName": self.category_name(),
+            "text": self.text(board)
+        }
+    
+class BandRule(SelfRule):
+    """
+    A rule stating that objects are in a band of a certain number of sectors
+    """
+    def __init__(self, space_object, band_size, precision):
+        """
+        Creates a BandRule stating that the space_objects are in a band of size band_size
+        with precision precision
+        """
+        self.space_object = space_object
+        self.band_size = band_size
+        self.precision = precision
+        
+    def __repr__(self):
+        return "<" + repr(self.space_object) + ", band: " + str(self.band_size) + ", precision: " + \
+            self.precision.to_json() + ">"
+    
+    def __str__(self):
+        return "The " + self.space_object.plural() + " are in a band of " + str(self.precision) + " " + \
+            str(self.band_size) + "."
+    
+    def text(self, board):
+        return str(self)
+    
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.band_size == other.band_size and self.space_object == other.space_object and \
+                    self.precision == other.precision
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(self.space_object) + self.band_size + hash(self.precision)
+    
+    @staticmethod
+    def _smallest_band(space_object, board):
+        """
+        Finds the smallest band the space_objects are in on Board board.
+        """
+        board_size = len(board)
+        
+        # Find the longest run between space_objects
+        longest_run_between = 0
+        run_between = 0
+        for obj in board:
+            if not obj is space_object:
+                run_between += 1
+            else:
+                if run_between > longest_run_between:
+                    longest_run_between = run_between
+                run_between = 0
+        
+        # Continue looking from the start, since the board is a circle
+        for obj in board:
+            if not obj is space_object:
+                run_between += 1
+            else:
+                if run_between > longest_run_between:
+                    longest_run_between = run_between
+                break
+        
+        smallest_band = board_size - longest_run_between
+        
+        return smallest_band
+        
+    def is_satisfied(self, board):
+        smallest_band = self._smallest_band(self.space_object, board)
+        
+        if self.precision == Precision.STRICT:
+            return smallest_band == self.band_size
+        elif self.precision == Precision.WITHIN:
+            return smallest_band <= self.band_size
+    
+    def is_immediately_limiting(self):
+        return False
+
+    def disallowed_sectors(self):
+        return []
+    
+    def _fill_band(self, board, num_obj, band_start, i_start=None):
+        """
+        Given the start location of the band, fill in the remaining objects in the center of the 
+        band
+        
+        board: The Board to fill, with the start and end object in the band already filled
+        num_obj: The number of objects to fill in the band 
+        band_start: The index of the first object in the band
+        i_start: objects can be filled in starting at index i_start and not before
+        """
+        if i_start is None:
+            i_start = band_start
+            
+        if num_obj == 0:
+            return [ board ]
+        
+        new_boards = []
+        for i in range(i_start, band_start + self.band_size - num_obj):
+            # Try every position possible for the next object
+            if board[i] is None:
+                board_copy = board.copy()
+                board_copy[i] = self.space_object
+                # Place object here and then recurse to fill in remaining objects
+                new_boards.extend(self._fill_band(board_copy, num_obj - 1, band_start, i+1))
+        return new_boards
+    
+    def _fill_board_exact(self, board, num_objects, exact_size):
+        # Must be at least two dwarf planets (start & end of the band)
+        if num_objects[self.space_object] < 2:
+            return []
+        
+        new_boards = []
+        for i in range(len(board)):
+            # Try every start/end pair of objects for the band
+            if board[i] is None and board[i + exact_size - 1] is None:
+                board_copy = board.copy()
+                board_copy[i] = self.space_object
+                board_copy[i + exact_size - 1] = self.space_object
+                # Fill in the dwarf planets inside the band
+                new_boards.extend(self._fill_band(board_copy, num_objects[self.space_object] - 2, i))
+        return new_boards
+    
+    def fill_board(self, board, num_objects):
+        if self.precision is Precision.STRICT:
+            return self._fill_board_exact(board, num_objects, self.band_size)
+        else:
+            min_size = num_objects[self.space_object]
+            max_size = self.band_size
+            new_boards = []
+            for size in range(min_size, max_size+1):
+                new_boards.extend(self._fill_board_exact(board, num_objects, size))
+            return new_boards
+            
+    def affects(self):
+        return [ self.space_object ]
+    
+    def completes(self):
+        return [ self.space_object ]
+    
+    def adds(self):
+        return [ self.space_object ]
+    
+    @classmethod
+    def generate_rule(cls, board, constraints, space_object):
+        # Some objects are already constrained to be in bands, don't generate
+        # similar rules
+        if any(isinstance(constraint, cls) and constraint.space_object == space_object 
+              for constraint in constraints):
+            return None
+        
+        # Must be at least 2 objects to have a band rule
+        if board.num_objects()[space_object] == 1:
+            return None
+        
+        num_obj = board.num_objects()[space_object]
+        # Won't generate a rule for too large or small of a band
+        band_max = min(2 * num_obj + 1, len(board) // 2)
+       
+        smallest_band = cls._smallest_band(space_object, board)
+        band_min = max(smallest_band, num_obj + 1)
+        
+        if band_min > band_max:
+            return None
+        else:
+            # Generate a random band size up to the max 
+            # (The space objects are still within this size)
+            rand_band = random.randint(band_min, band_max)
+            return BandRule(space_object, rand_band, Precision.WITHIN)
+        
+    def code(self):
+        return "B" + str(self.space_object) + str(self.band_size) + self.precision.code()
+    
+    @classmethod
+    def parse(cls, s):
+        space_object = SpaceObject.parse(s[1])
+        band_size = int(s[2])
+        precision = Precision.parse(s[3])
+        return cls(space_object, band_size, precision)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "BAND",
+            "spaceObject": self.space_object.to_json(),
+            "numSectors": self.band_size,
+            "precision": self.precision.to_json(),
+            "categoryName": self.category_name(),
+            "text": self.text(board)
+        }
+
+class SectorsRule(SelfRule):
+    """
+    A rule stating that objects are only in particular sectors
+    """
+    def __init__(self, space_object, positions, board_size):
+        self.space_object = space_object
+        self.positions = positions
+        self.board_size = board_size
+        
+    def __repr__(self):
+        return "<" + repr(self.space_object) + ", positions: " + str(self.positions) + ">"
+    
+    def __str__(self):
+        return "The " + self.space_object.plural() + " are only in sectors " + \
+            ", ".join([str(i+1) for i in self.positions]) + "."
+    
+    def text(self, board):
+        return str(self)
+    
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.positions == other.positions
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(self.space_object) + hash(self.board_size) + hash(tuple(positions))
+        
+    def is_satisfied(self, board):
+        for i, obj in enumerate(board):
+            if obj is self.space_object:
+                if i not in self.positions:
+                    return False
+        return True
+    
+    def is_immediately_limiting(self):
+        return True
+
+    def disallowed_sectors(self):
+        return set(range(self.board_size)) - set(self.positions)
+    
+    def fill_board(self, board, num_objects):
+        if not self.is_satisfied(board):
+            return []
+        
+        obj_positions = {i for i, obj in enumerate(board) if obj is self.space_object}
+        rem_positions = self.positions - obj_positions 
+        num_obj = num_objects[self.space_object] - len(obj_positions)
+        new_boards = []
+        # Generate all permutations for object positions
+        for idx_sublist in itertools.combinations(rem_positions, num_obj):
+            # Puts those comets on the board if there is nothing there already
+            if all(board[i] is None for i in idx_sublist):
+                new_board = board.copy()
+                for i in idx_sublist:
+                    new_board[i] = self.space_object
+                new_boards.append(new_board)
+        return new_boards
+            
+    def affects(self):
+        return [ self.space_object ]
+    
+    def completes(self):
+        return [ self.space_object ]
+    
+    def adds(self):
+        return [ self.space_object ]
+    
+    @classmethod
+    def generate_rule(cls, board, constraints, space_object):
+        # Will not generate generic rules of this type
+        return None
+        
+    def code(self):
+        return "P" + str(self.space_object) + "".join(chr(i + 65) for i in self.positions)
+    
+    @classmethod
+    def parse(cls, s):
+        space_object = SpaceObject.parse(s[1])
+        positions = [ord(c) - 65 for c in s[2:]]
+        return cls(space_object, positions)
+    
+    def to_json(self, board):
+        return {
+            "ruleType": "SECTORS",
+            "spaceObject": self.space_object.to_json(),
+            "allowedSectors": self.positions,
+            "categoryName": self.category_name(),
+            "text": self.text(board)
+        }
+    
+class CometRule(SectorsRule):
+    @staticmethod
+    def _generate_prime_indices(n):
+        """
+        Generates a set of primes from 1 to n, minus one
+        
+        n: maximum of range to generate primes in
+        """
+        primes = set()
+        for i in range(2, n+1):
+            is_prime = True
+            for prime in primes:
+                if i % (prime+1) == 0:
+                    is_prime = False
+                    break
+            if is_prime:
+                primes.add(i-1)
+        return primes
+    
+    def __init__(self, board_size):
+        super().__init__(SpaceObject.Comet, self._generate_prime_indices(board_size), board_size)

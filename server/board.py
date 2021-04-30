@@ -164,17 +164,14 @@ class Board:
     """
     Represents a game board with specific objects in its sectors
     """
-    def __init__(self, objects=[]):
+    def __init__(self, objects):
         """
         Create a Board with the space objects in objects, starting from sector 1.
         
         objects: A list of SpaceObject that are on the board, in order
         """
-        if objects is None:
-            self.objects = []
-        else:
-            self.objects = objects
-           
+        self.objects = objects 
+        self.size = len(self.objects)
         self.num_objs_valid = False
             
     def __str__(self):
@@ -184,23 +181,32 @@ class Board:
         return "<Board " + str(self) + ">"
     
     def __len__(self):
-        return len(self.objects)
+        return self.size
     
     def __iter__(self):
         for obj in self.objects:
             yield obj
             
     def __getitem__(self, i):
-        if isinstance(i, slice) :
-            return [self.objects[ii % len(self)] for ii in range(i.start or 0, i.stop or len(self), i.step or 1)]
-        else:
-            x = i % len(self)
-            return self.objects[x]
+        x = i % self.size
+        return self.objects[x]
     
     def __setitem__(self, i, item):
-        x = i % len(self)
+        x = i % self.size
         self.objects[x] = item
         self.num_objs_valid = False
+        
+    def __eq__(self, other):
+        if (isinstance(other, self.__class__)):
+            return self.objects == other.objects
+        else:
+            return False
+       
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(tuple(self.objects))
     
     def check_constraints(self, constraints):
         """
@@ -284,3 +290,4 @@ class Board:
                 for space_object in self.num_objects()
             }
         }
+    

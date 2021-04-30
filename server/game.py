@@ -746,8 +746,33 @@ class WithinRule(RelationRule):
         
         return minimum_sectors, maximum_sectors
     
+    @staticmethod
+    def _max_between(space_object, board):
+        max_run = 0
+        current_run = 0
+        for obj in board:
+            if obj == space_object:
+                if current_run > max_run:
+                    max_run = current_run
+                current_run = 0
+            else:
+                current_run += 1
+                
+        for obj in board:
+            if obj == space_object:
+                if current_run > max_run:
+                    max_run = current_run
+                break
+            else:
+                current_run += 1
+                
+        return max_run
+    
     @classmethod
     def generate_rule(cls, space_object1, space_object2, board):
+        min_none = 2
+        max_every = len(board)
+        
         num_object1 = board.num_objects()[space_object1]
         num_object2 = board.num_objects()[space_object2]
         
@@ -756,22 +781,30 @@ class WithinRule(RelationRule):
             return None
         
         max_n = int(len(board)/3 - 1)
+        max_every = min(max_every, max_n)
         
         min_sectors, max_sectors = cls._max_min_sectors_away(space_object1, space_object2, board)
         
         options = []
         
-        if min_sectors > 2:
+        if min_sectors > min_none:
             # Create a random number of sectors that no object1 is within object2
             # This must be < min_sectors, because object1 is within that many sectors of object2.
-            num_not_within = random.randrange(2, min_sectors)
+            num_not_within = random.randrange(min_none, min_sectors)
             options.append((RuleQualifier.NONE, num_not_within))
         
-        if max_sectors <= max_n:
-            # Create a random number of sectors that every object1 is within object2
-            # This must be at least max_sectors, to cover every possible object1
-            num_within = random.randrange(max(2, max_sectors), max_n+1)
-            options.append((RuleQualifier.EVERY, num_within))
+        if max_sectors <= max_every:
+            max_between_obj2 = cls._max_between(space_object2, board)
+            max_for_eliminating = (max_between_obj2 - 1) // 2
+            
+            max_rule = min(max_for_eliminating, max_every)
+            min_rule = max(2, max_sectors)
+                    
+            if min_rule <= max_rule:
+                # Create a random number of sectors that every object1 is within object2
+                # This must be at least max_sectors, to cover every possible object1
+                num_within = random.randrange(min_rule, max_rule+1)
+                options.append((RuleQualifier.EVERY, num_within))
             
         if len(options) == 0:
             return None
