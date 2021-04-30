@@ -371,33 +371,23 @@ class AdjacentRule(RelationRule):
         return []
     
     def _fill_board_none(self, board, num_objects):
-        if not self.is_satisfied(board):
-            # There are already two adjacent in this board, cannot meet rule
-            return []
-        
         num_obj1 = num_objects[self.space_object1]
         num_obj2 = num_objects[self.space_object2]
         
-        for obj in board:
+        for i, obj in enumerate(board):
             if obj is self.space_object1:
+                if board[i-1] is self.space_object2 or board[i+1] is self.space_object2:
+                    # There are already two adjacent on this board, cannot meet rule
+                    return []
                 num_obj1 -= 1
             elif obj is self.space_object2:
                 num_obj2 -= 1
         
         return add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())    
     
-    def _fill_board_every(self, board, num_objects, num_objects_left, start_i=0):
+    def _fill_board_every(self, board, num_obj1, num_obj1_left, num_obj2_left, start_i=0):
         # num_objects: how many should be on the board starting from start_i
         # num_objects_left: how many still need to be placed
-        num_obj1 = num_objects[self.space_object1]
-        num_obj2 = num_objects[self.space_object2]
-        
-        num_obj1_left = num_objects_left[self.space_object1]
-        num_obj2_left = num_objects_left[self.space_object2]
-                
-        new_num_objects = num_objects.copy()
-        new_num_objects_left = num_objects_left.copy()
-
         if num_obj1 == 0:
             return [ board ]
         
@@ -414,11 +404,8 @@ class AdjacentRule(RelationRule):
                         # If there is already an obj2 next to it, fill with obj1 and proceed
                         board_copy = board.copy()
                         board_copy[i] = self.space_object1
-                        new_num_objects[self.space_object1] = num_obj1 - 1
-                        new_num_objects[self.space_object2] = num_obj2
-                        new_num_objects_left[self.space_object1] = num_obj1_left - (not is_obj1)
-                        new_num_objects_left[self.space_object2] = num_obj2
-                        new_boards.extend(self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+1))
+                        new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                                                                 num_obj1_left - (not is_obj1), num_obj2_left, i+1))
                     elif num_obj2_left > 0:
                         # Otherwise there must be obj2 left to use
                         if board[i-1] is None and (i-2 < 0 or board[i-2] is not self.space_object1):
@@ -431,11 +418,8 @@ class AdjacentRule(RelationRule):
                             board_copy = board.copy()
                             board_copy[i] = self.space_object1
                             board_copy[i-1] = self.space_object2
-                            new_num_objects[self.space_object1] = num_obj1 - 1
-                            new_num_objects[self.space_object2] = num_obj2 - 1
-                            new_num_objects_left[self.space_object1] = num_obj1_left - (not is_obj1)
-                            new_num_objects_left[self.space_object2] = num_obj2_left - 1
-                            new_boards.extend(self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+1))
+                            new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                                                                     num_obj1_left - (not is_obj1), num_obj2_left - 1, i+1))
                     
                         if board[i+1] is None and (i+2 < len(board) or board[i+2] is not self.space_object1):
                             # Do not put an obj2 on the right if there is a obj1
@@ -447,11 +431,8 @@ class AdjacentRule(RelationRule):
                             board_copy = board.copy()
                             board_copy[i] = self.space_object1
                             board_copy[i+1] = self.space_object2
-                            new_num_objects[self.space_object1] = num_obj1 - 1
-                            new_num_objects[self.space_object2] = num_obj2 - 1
-                            new_num_objects_left[self.space_object1] = num_obj1_left - (not is_obj1)
-                            new_num_objects_left[self.space_object2] = num_obj2_left - 1
-                            new_boards.extend(self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+2))
+                            new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                                                                     num_obj1_left - (not is_obj1), num_obj2_left - 1, i+2))
 
                 if is_obj1 and options == 0:
                     # Unable to place an obj2 next to an existing obj1
@@ -466,12 +447,17 @@ class AdjacentRule(RelationRule):
             # Not yet supported
             return None
         else:
-            num_objects_left = num_objects.copy()
+            num_obj1 = num_objects[self.space_object1]
+            num_obj1_left = num_obj1
+            num_obj2_left = num_objects[self.space_object2]
+            
             for obj in board:
-                if obj is self.space_object1 or obj is self.space_object2:
-                    num_objects_left[obj] -= 1
+                if obj is self.space_object1:
+                    num_obj1_left -= 1
+                elif obj is self.space_object2:
+                    num_obj2_left -= 1
                 
-            return self._fill_board_every(board, num_objects, num_objects_left)
+            return self._fill_board_every(board, num_obj1, num_obj1_left, num_obj2_left)
             
     def affects(self):
         if self.qualifier is RuleQualifier.NONE:
