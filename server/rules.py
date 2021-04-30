@@ -384,9 +384,7 @@ class AdjacentRule(RelationRule):
             elif obj is self.space_object2:
                 num_obj2 -= 1
         
-        board_perms = add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())
-        return board_perms
-    
+        return add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())    
     
     def _fill_board_every(self, board, num_objects, num_objects_left, start_i=0):
         # num_objects: how many should be on the board starting from start_i
@@ -702,11 +700,8 @@ class OppositeRule(RelationRule):
                     board_copy[i] = p[j]
                     j += 1
             if self.is_satisfied(board_copy):
-                new_boards.append(board_copy)
-        
-        return new_boards
-    
-    
+                yield board_copy
+            
     def _fill_board_every(self, board, num_objects, num_objects_left, start_i=0):
         # num_objects: how many should be on the board starting from start_i
         # num_objects_left: how many still need to be placed
@@ -719,11 +714,10 @@ class OppositeRule(RelationRule):
         new_num_objects_left = num_objects_left.copy()
 
         if num_obj1 == 0:
-            return [ board ]
+            yield board
         
         half = len(board) // 2
         
-        new_boards = []
         for i in range(start_i, len(board)):
             obj = board[i]
             is_obj1 = obj is self.space_object1
@@ -737,10 +731,8 @@ class OppositeRule(RelationRule):
                     new_num_objects[self.space_object1] = num_obj1 - 1
                     new_num_objects_left[self.space_object1] = num_obj1_left - (not is_obj1)
                     new_num_objects_left[self.space_object2] = num_obj2_left - (not already_opp)
-                    new_boards.extend(self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+1))
+                    yield from self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+1)
                     
-        return new_boards
- 
     def fill_board(self, board, num_objects):
         if self.qualifier is RuleQualifier.NONE:
             return self._fill_board_none(board, num_objects)
@@ -1424,34 +1416,31 @@ class AdjacentSelfRule(SelfRule):
         board_perms = add_one_no_self_touch(self.space_object, num_obj, board.copy())
         return board_perms
     
-    def _fill_board_runs(self, board, num_obj, start_i=0):         
+    def _fill_board_runs(self, board, num_obj, start_i=0):
         # Fill in board with runs of asteroids, starting new runs only at start_i and after
         
         # If there are no asteroids left, check if board is valid
         if num_obj == 0:
             if self.is_satisfied(board):
-                return [board]
+                yield board
+                return
             else:
-                return []
-        
+                return
+                   
         # If there is a lone asteroid, find it and immediately add another asteroid clockwise
         for i in range(start_i - 1, len(board)):
             obj = board[i]
             if obj is self.space_object and board[i-1] is not self.space_object \
             and board[i+1] is not self.space_object:
                 # Found a lone asteroid
-                new_boards = []
-                
                 # Only fill asteroid runs to the right without combining runs
                 if board[i+1] is None and board[i+2] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i+1] = self.space_object
-                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, start_i))
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i)
                     
-                return new_boards
-            
-        new_boards = []
-        
+                return
+                    
         for i in range(len(board)):
             obj = board[i]
             if obj is None:
@@ -1459,28 +1448,25 @@ class AdjacentSelfRule(SelfRule):
                 if board[i-1] is self.space_object and board[i+1] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i] = self.space_object
-                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, start_i))
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i)
                 # OR start a new asteroid run, if conditions allow
                 elif i >= start_i and num_obj > 1 and board[i-1] is not self.space_object \
                 and board[i+1] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i] = self.space_object
-                    new_boards.extend(self._fill_board_runs(board_copy, num_obj - 1, i+1))
-        
-        return new_boards
-    
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, i+1)
+            
     def _prepare_board(self, board, num_obj, lone, run_backwards, start_i=None):
         if start_i is None:
             start_i = len(board) - 1
         
         board_ready = len(lone) == 0 and len(run_backwards) == 0
         if board_ready:
-            return [ (num_obj, board) ]
+            yield (num_obj, board) 
 
         if start_i <= 0:
-            return []
+            return
         
-        new_boards = []
         for i in range(start_i, -1, -1):
             obj = board[i]
             if obj is self.space_object:
@@ -1489,12 +1475,12 @@ class AdjacentSelfRule(SelfRule):
                         board_copy = board.copy()
                         board_copy[i+1] = self.space_object
                         new_lone = lone - {i}
-                        new_boards.extend(self._prepare_board(board_copy, num_obj - 1, new_lone, run_backwards, i-1))
+                        yield from self._prepare_board(board_copy, num_obj - 1, new_lone, run_backwards, i-1)
                         
                 if board[i-1] is None:
                     new_run_backwards = run_backwards - { i }
                     if board[i+1] is self.space_object:
-                        new_boards.extend(self._prepare_board(board.copy(), num_obj, lone, new_run_backwards, i-1))
+                        yield from self._prepare_board(board.copy(), num_obj, lone, new_run_backwards, i-1)
                         
                     num_left = num_obj
                     j = i - 1
@@ -1504,16 +1490,14 @@ class AdjacentSelfRule(SelfRule):
                             board_copy[j] = self.space_object
                             num_left -= 1
                             new_lone = lone - { j - 1 % len(board) }
-                            new_boards.extend(self._prepare_board(board_copy, num_left, new_lone, new_run_backwards, j-1))
+                            yield from self._prepare_board(board_copy, num_left, new_lone, new_run_backwards, j-1)
                             board_copy = board_copy.copy()
                             j -= 1
                         elif board[j] is self.space_object:
                             j -= 1
                         else:
                             break
-                        
-        return new_boards
-                        
+                                                
     def _fill_board_every(self, board, num_objects):
         num_left = num_objects[self.space_object] - sum(obj is self.space_object for obj in board)
         lone = set(i for i, obj in enumerate(board) if obj is self.space_object
@@ -1521,10 +1505,9 @@ class AdjacentSelfRule(SelfRule):
         run_backwards = set(i for i, obj in enumerate(board) if obj is self.space_object
                            and board[i-1] is None)
         boards = self._prepare_board(board, num_left, lone, run_backwards)
-        new_boards = []
+
         for num_obj, board in boards:
-            new_boards.extend(self._fill_board_runs(board, num_obj))
-        return new_boards
+            yield from self._fill_board_runs(board, num_obj)
     
     def fill_board(self, board, num_objects):
         if self.qualifier is RuleQualifier.NONE:
@@ -1687,9 +1670,7 @@ class OppositeSelfRule(SelfRule):
                 num_none += 1
         
         num_none -= num_obj
-        
-        new_boards = []
-        
+                
         perms = permutations_multi({self.space_object: num_obj, None: num_none})
         for p in perms:
             board_copy = board.copy()
@@ -1699,9 +1680,7 @@ class OppositeSelfRule(SelfRule):
                     board_copy[i] = p[j]
                     j += 1
             if self.is_satisfied(board_copy):
-                new_boards.append(board_copy)
-        
-        return new_boards
+                yield board_copy
     
     def _prepare_board_every(self, board):
         new_board = board.copy()
@@ -1725,7 +1704,7 @@ class OppositeSelfRule(SelfRule):
         # num_objects: how many should be on the board starting from start_i
         # num_objects_left: how many still need to be placed
         if num_obj_left == 0:
-            return [ board ]
+            yield board
         
         half = len(board) // 2
         
@@ -1736,10 +1715,8 @@ class OppositeSelfRule(SelfRule):
                 board_copy[i + half] = self.space_object
                 board_copy[i] = self.space_object
 
-                new_boards.extend(self._fill_board_every(board_copy, num_obj_left - 2, i+1))
-          
-        return new_boards
-    
+                yield from self._fill_board_every(board_copy, num_obj_left - 2, i+1)
+             
     def fill_board(self, board, num_objects):
         if self.qualifier is RuleQualifier.NONE:
             return self._fill_board_none(board, num_objects)
@@ -1948,24 +1925,22 @@ class BandRule(SelfRule):
             i_start = band_start
             
         if num_obj == 0:
-            return [ board ]
+            yield board
+            return
         
-        new_boards = []
         for i in range(i_start, band_start + self.band_size - num_obj):
             # Try every position possible for the next object
             if board[i] is None:
                 board_copy = board.copy()
                 board_copy[i] = self.space_object
                 # Place object here and then recurse to fill in remaining objects
-                new_boards.extend(self._fill_band(board_copy, num_obj - 1, band_start, i+1))
-        return new_boards
+                yield from self._fill_band(board_copy, num_obj - 1, band_start, i+1)
     
     def _fill_board_exact(self, board, num_objects, exact_size):
         # Must be at least two dwarf planets (start & end of the band)
         if num_objects[self.space_object] < 2:
-            return []
+            return
         
-        new_boards = []
         for i in range(len(board)):
             # Try every start/end pair of objects for the band
             if board[i] is None and board[i + exact_size - 1] is None:
@@ -1973,19 +1948,16 @@ class BandRule(SelfRule):
                 board_copy[i] = self.space_object
                 board_copy[i + exact_size - 1] = self.space_object
                 # Fill in the dwarf planets inside the band
-                new_boards.extend(self._fill_band(board_copy, num_objects[self.space_object] - 2, i))
-        return new_boards
+                yield from self._fill_band(board_copy, num_objects[self.space_object] - 2, i)
     
     def fill_board(self, board, num_objects):
         if self.precision is Precision.STRICT:
-            return self._fill_board_exact(board, num_objects, self.band_size)
+            yield from self._fill_board_exact(board, num_objects, self.band_size)
         else:
             min_size = num_objects[self.space_object]
             max_size = self.band_size
-            new_boards = []
             for size in range(min_size, max_size+1):
-                new_boards.extend(self._fill_board_exact(board, num_objects, size))
-            return new_boards
+                yield from self._fill_board_exact(board, num_objects, size)
             
     def affects(self):
         return [ self.space_object ]
@@ -2089,12 +2061,11 @@ class SectorsRule(SelfRule):
     
     def fill_board(self, board, num_objects):
         if not self.is_satisfied(board):
-            return []
+            return
         
         obj_positions = {i for i, obj in enumerate(board) if obj is self.space_object}
         rem_positions = self.positions - obj_positions 
         num_obj = num_objects[self.space_object] - len(obj_positions)
-        new_boards = []
         # Generate all permutations for object positions
         for idx_sublist in itertools.combinations(rem_positions, num_obj):
             # Puts those comets on the board if there is nothing there already
@@ -2102,8 +2073,7 @@ class SectorsRule(SelfRule):
                 new_board = board.copy()
                 for i in idx_sublist:
                     new_board[i] = self.space_object
-                new_boards.append(new_board)
-        return new_boards
+                yield new_board
             
     def affects(self):
         return [ self.space_object ]
