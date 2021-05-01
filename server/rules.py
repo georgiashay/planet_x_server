@@ -290,7 +290,7 @@ class RelationRule(Rule):
     
     @classmethod
     @abstractmethod
-    def eliminate_sectors(cls, board, data, space_object1, space_object2):
+    def eliminate_sectors(cls, board, constraints, data, space_object1, space_object2):
         """
         Create a rule that will eliminate possible positions of space_object1, where 
         space_object1 and data.elimination_object are ambiguous on survey/target
@@ -524,7 +524,7 @@ class AdjacentRule(RelationRule):
         return AdjacentRule(space_object1, space_object2, qualifier)
     
     @classmethod
-    def eliminate_sectors(cls, space_object1, space_object2, data, board, constraints):  
+    def eliminate_sectors(cls, board, constraints, data, space_object1, space_object2):  
         """
         Create a rule that will eliminate possible positions of space_object1, where 
         space_object1 and data.elimination_object are ambiguous on survey/target
@@ -537,7 +537,7 @@ class AdjacentRule(RelationRule):
         # Some are already constrained, don't generate these rules
         if any(isinstance(constraint, cls) and constraint == cls(space_object1, space_object2, constraint.qualifier)
               for constraint in constraints):
-            return None
+            return None, None
         
         obj1_num_adjacent = 0
         el_adjacent = set()
@@ -804,11 +804,11 @@ class OppositeRule(RelationRule):
         return OppositeRule(space_object1, space_object2, qualifier)
     
     @classmethod
-    def eliminate_sectors(cls, space_object1, space_object2, data, board, constraints):
+    def eliminate_sectors(cls, board, constraints, data, space_object1, space_object2):
         # Some are already constrained, don't generate these rules
         if any(isinstance(constraint, cls) and constraint == cls(space_object1, space_object2, constraint.qualifier)
               for constraint in constraints):
-            return None
+            return None, None
         
         # Board must have an even number of sectors for objects to be opposite each other
         if len(board) % 2 != 0:
@@ -1210,7 +1210,7 @@ class WithinRule(RelationRule):
         return WithinRule(space_object1, space_object2, qualifier, num_sectors)
     
     @classmethod
-    def eliminate_sectors(cls, space_object1, space_object2, data, board, constraints):
+    def eliminate_sectors(cls, board, constraints, data, space_object1, space_object2):
         """
         Create a rule that will eliminate possible positions of space_object1, where 
         space_object1 and data.elimination_object are ambiguous on survey/target
@@ -1527,7 +1527,7 @@ class AdjacentSelfRule(SelfRule):
     def generate_rule(cls, board, constraints, space_object):
         # Some constraints already limit this significantly and would be redundant
         if any((isinstance(constraint, cls) and constraint == cls(space_object, constraint.qualifier))
-               or (isinstance(constraint, SectorRule) and constraint.space_object == space_object) 
+               or (isinstance(constraint, SectorsRule) and constraint.space_object == space_object) 
                for constraint in constraints):
             return None
         
@@ -1595,7 +1595,7 @@ class OppositeSelfRule(SelfRule):
                 + repr(self.space_object) + ">"
     
     def __str__(self):
-        return str(self.qualifier) + " " + self.space_object1.name() + " is directly opposite another " + \
+        return str(self.qualifier) + " " + self.space_object.name() + " is directly opposite another " + \
                 self.space_object.name() + "."
     
     def text(self, board):
@@ -1747,7 +1747,7 @@ class OppositeSelfRule(SelfRule):
     def generate_rule(cls, board, constraints, space_object):
         # Some constraints already limit this significantly and would be redundant
         if any((isinstance(constraint, cls) and constraint == cls(space_object, constraint.qualifier))
-               or (isinstance(constraint, SectorRule) and constraint.space_object == space_object) 
+               or (isinstance(constraint, SectorsRule) and constraint.space_object == space_object) 
                for constraint in constraints):
             return None
         
@@ -2043,7 +2043,7 @@ class SectorsRule(SelfRule):
         return True
 
     def disallowed_sectors(self):
-        return set(range(self.board_size)) - set(self.positions)
+        return [ (self.space_object, set(range(self.board_size)) - set(self.positions)) ]
     
     def fill_board(self, board, num_objects):
         if not self.is_satisfied(board):

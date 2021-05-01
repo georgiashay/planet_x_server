@@ -62,11 +62,41 @@ class GameGenerator:
         game_file.close()
         
     @staticmethod
+    def _code_to_int(code):
+        """
+        Get the integer corresponding to a game code of the form
+        <letter><number><letter><number>. The letters cannot be O/I, and the 
+        numbers are 2-9. The 0th game code is A2A2...A2 for any given length.
+        
+        code: The game code 
+        """
+        i = 0
+        
+        while len(code) > 0:
+            i *= (8 * 24)
+            
+            letter = ord(code[0]) - 65
+            digit = int(code[1])
+            
+            i += (digit - 2)
+            
+            if letter < 8:
+                i += letter * 8
+            elif letter < 14:
+                i += (letter - 1) * 8
+            else:
+                i += (letter - 2) * 8
+                
+            code = code[2:]
+        
+        return i
+        
+    @staticmethod
     def _game_code(i, length):
         """
         Construct the ith game code of length length. Game codes are in the format
-        <letter><number><letter><number>... The letters cannot be O, and the numbers 
-        are 1-9. The 0th game code is A1A1...A1 for any given length.
+        <letter><number><letter><number>... The letters cannot be O/I, and the numbers 
+        are 2-9. The 0th game code is A2A2...A2 for any given length.
         
         length: The number of characters for the game code. Must be even.
         i: The number of the game code to construct
@@ -75,37 +105,84 @@ class GameGenerator:
         # Construct code, taking each letter-number pair one by one
         while i > 0:
             # Extract number by taking modulo
-            n = (i % 9) + 1
-            i = int(i/9)
+            n = (i % 8) + 2
+            i = int(i/8)
             # Extract letter index by taking modulo
-            l = i % 25
-            # Turn letter index into a letter, skipping O
-            if l < 14:
+            l = i % 24
+            # Turn letter index into a letter, skipping O and I
+            if l < 8:
                 c = chr(l + 65)
-            else:
+            elif l < 13:
                 c = chr(l + 66)
-            i = int(i/25)
+            else:
+                c = chr(l + 67)
+            i = int(i/24)
             # Prepend letter-number pair to code
             code = c + str(n) + code
-        # Pad with A1's 
+        # Pad with A2's 
         if len(code) < length:
-            code = "A1" * ((length - len(code))//2) + code
-        return code
+            code = "A2" * ((length - len(code))//2) + code
+        return code 
     
     @staticmethod
-    def _generate_game_codes(total_games):
+    def _generate_game_codes(total_games, one_code_length=True):
         """
         Generate a random set of game codes for a given number of games
         """
-        # Determine the code length needed for that number of games
-        code_length = 0
-        n = total_games
-        while n > 0:
-            code_length += 2
-            n = int(n/(25 * 9))
+        existing_codes = db_ops.get_game_codes()
+        existing_ints = sorted({GameGenerator._code_to_int(code) for code in existing_codes})
         
+        if len(existing_ints):
+            max_existing = existing_ints[-1]
+            
+            available_ints = []
+            for i, next_i in zip(existing_ints, existing_ints[1:]):
+                available_ints.extend(list(range(i+1, next_i)))
+            
+            available_ints.append(max_existing + 1)
+        
+        else:
+            available_ints = [0]
+        
+  
+        additional_needed = total_games - len(available_ints)
+        
+        if additional_needed >= 0:
+            min_max_needed = available_ints[-1] + additional_needed
+
+             # Determine the code length needed for that number of games
+            code_length = 0
+            n = min_max_needed
+            while n > 0:
+                code_length += 2
+                n = int(n/(24 * 8))
+
+            max_code = (24*8)**(code_length//2)
+            available_ints.extend(list(range(available_ints[-1]+1, max_code)))
+            
+        else:
+            code_length = 0
+                       
+            def index_generator(l):
+                i = 0
+                cutoff = yield 
+                while i < len(l):
+                    while i < len(l) and l[i] < cutoff:
+                        i += 1
+                    cutoff = yield i
+
+            g = index_generator(available_ints)
+            next(g)
+            i = 0
+            while i < total_games:
+                max_code = (3)**(code_length//2)
+                i = g.send(max_code)
+                code_length += 2
+
+            available_ints = available_ints[:i]
+
         # Take a random sample of integers up to the maximum possible for that code length
-        nums = random.sample(range((25*9)**(code_length//2)), total_games)
+        nums = random.sample(available_ints, total_games)
         # Get game code for each integer 
         codes = [GameGenerator._game_code(num, code_length) for num in nums]
         return codes
@@ -148,3 +225,5 @@ class GameGenerator:
             some_codes = game_codes[i:i+chunk_size]
         
             db_ops.add_games_by_str(some_strs, some_codes)
+            
+        

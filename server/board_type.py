@@ -4,7 +4,7 @@ import sys
 import os
 import math
 
-from .constraints import *
+from .rules import *
 from .board import SpaceObject
     
 class BoardType:
@@ -73,10 +73,12 @@ class BoardType:
         
         board: A board that has been partially filled with space objects
         """
-        new_num_objects = copy(self.num_objects)
+        new_num_objects = self.num_objects.copy()
+        
         for obj in board:
             if obj is not None:
                 new_num_objects[obj] -= 1
+
         return new_num_objects
     
     def _list_objects(self, num_objects):
@@ -115,70 +117,6 @@ class BoardType:
             constraints.update(constraints_for_types[obj])
         
         return constraints
-
-    def generate_all_boards(self, parallel=None):
-        """
-        Generate all boards of this type by working up, i.e. adding in space objects that 
-        follow each constraint until the board is full.
-        
-        parallel: If provided, will only generate some of the boards. It should be a tuple
-            where the first number is the core number, and the second number is the total
-            number of cores this process is run on. Boards passing the first constraint are
-            eliminated if their indices are not the first number, modulo the second number.
-        """
-        # Sort constraints to attempt to create the best "bottom-up" approach.
-        # They are sorted first by the number of space objects they affect - i.e. constraints
-        # affecting only one space object go first
-        # They are then sorted by the number of space objects they add - i.e. constraints which
-        # add more types of space objects go first
-        constraints = sorted(self.constraints, key=lambda c: (len(c.affects()), len(c.adds())))
-        print("Constraints:")
-        print("\n".join(str(c) for c in constraints))
-        boards = [Board([None] * self.board_length)]
-        next_boards = []
-        
-        # For each constraint, generate all boards (leaving some sectors undefined) which
-        # meet that constraint. Build on top of boards passing previous constraints.
-        for i, constraint in enumerate(constraints):
-            print("Working on constraint " + str(i+1) + "/" + str(len(constraints)) + ": " + str(constraint))
-            # For every board built from previous constraints, find all boards that can
-            # satisfy this next constraint by adding to it.
-            for j, board in enumerate(boards):
-#                 print("Processing board " + str(j+1) + "/" + str(len(boards)), end="\r")
-                new_num_objects = self._subtract_num_objects(board)
-                next_boards.extend(constraint.fill_board(board, new_num_objects))
-            print()
-            # For the first constraint, filter out boards to parallelize the process.
-            if i == 0 and parallel is not None:
-                index, cores = parallel
-                next_boards = [board for i, board in enumerate(next_boards) if i % cores == index]
-            boards = next_boards
-            next_boards = []
-        
-        # Fill in the remaining undefined sectors 
-        print("Finishing boards with remaining objects")
-        for i, board in enumerate(boards):
-#             print("Processing board " + str(i+1) + "/" + str(len(boards)), end="\r")
-            # Find what objects need added to this board, and what constraints affect that object
-            new_num_objects = self._subtract_num_objects(board)
-            remaining_objects = self._list_objects(new_num_objects)
-            relevant_constraints = self._relevant_constraints(remaining_objects)
-            # Create every permutation of the remaining objects to attempt to fit into the board 
-            perms = set(itertools.permutations(remaining_objects))
-            
-            for perm in perms:
-                board_copy = board.copy()
-                j = 0
-                # Fill in undefined sectors with this permutation of the remaining objects
-                for i, obj in enumerate(board):
-                    if board[i] is None:
-                        board_copy[i] = perm[j]
-                        j += 1
-                # Ensure that the board follows the constraints
-                if board_copy.check_constraints(relevant_constraints):
-                    next_boards.append(board_copy)
-        print()
-        return next_boards
     
     def generate_boards_to_file(self, filename, chunk_size=float('inf'), parallel=None):
         """
@@ -243,8 +181,7 @@ class BoardType:
                     #      ", board " + str(j+1) + "/" + str(len(boards)), end="         \r")
                     # Create all possible boards from this previous board that meet 
                     # the current constraint
-                    new_num_objects = self._subtract_num_objects(board)
-                    new_boards = constraint.fill_board(board, new_num_objects)
+                    new_boards = constraint.fill_board(board, self.num_objects)
                     for new_board in new_boards:
                         num_boards += 1
                         next_boards_file.write(str(new_board) + "\n")
@@ -316,16 +253,14 @@ class BoardType:
                         boards.append(Board.parse(board_str))
             
             # Fill in all remaining boards
-            #print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
+#             print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
             for i, board in enumerate(boards):
-                #print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
-                #      ", board " + str(i+1) + "/" + str(len(boards)), end="        \r")
-                # Collect remaining objects and all constraints relevant to them
+#                 print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
+#                      ", board " + str(i+1) + "/" + str(len(boards)), end="        \r")
+                # Collect remaining objects
                 new_num_objects = self._subtract_num_objects(board)
-                remaining_objects = self._list_objects(new_num_objects)
-                relevant_constraints = self._relevant_constraints(remaining_objects)
                 # Create all permutations of remaining objects to put in the board
-                perms = set(itertools.permutations(remaining_objects))
+                perms = permutations_multi(new_num_objects)
 
                 for perm in perms:
                     board_copy = board.copy()
@@ -336,9 +271,8 @@ class BoardType:
                             board_copy[k] = perm[j]
                             j += 1
                             
-                    # If the new board meets all relevant constraints, add it to the file
-                    if board_copy.check_constraints(relevant_constraints):
-                        final_boards_file.write(str(board_copy) + "\n")
+                    # Add it to the file
+                    final_boards_file.write(str(board_copy) + "\n")
                              
                 # Calculate percentage for logging
                 current_board = i + chunk_size * chunk + 1
@@ -356,12 +290,84 @@ class BoardType:
         os.remove("tmp_boards_" + str(len(constraints)-1) + ".b")
         final_boards_file.close()
 
+    def generate_all_boards(self, parallel=None):
+        """
+        Generate all boards of this type by working up, i.e. adding in space objects that 
+        follow each constraint until the board is full.
+        
+        parallel: If provided, will only generate some of the boards. It should be a tuple
+            where the first number is the core number, and the second number is the total
+            number of cores this process is run on. Boards passing the first constraint are
+            eliminated if their indices are not the first number, modulo the second number.
+        """
+        # Sort constraints to attempt to create the best "bottom-up" approach.
+        # They are sorted first by the number of space objects they affect - i.e. constraints
+        # affecting only one space object go first
+        # They are then sorted by the number of space objects they add - i.e. constraints which
+        # add more types of space objects go first
+        constraints = sorted(self.constraints, key=lambda c: (len(c.affects()), len(c.adds())))
+        print("Constraints:")
+        print("\n".join(str(c) for c in constraints))
+        boards = [Board([None] * self.board_length)]
+        next_boards = []
+        
+        # For each constraint, generate all boards (leaving some sectors undefined) which
+        # meet that constraint. Build on top of boards passing previous constraints.
+        for i, constraint in enumerate(constraints):
+            print("Working on constraint " + str(i+1) + "/" + str(len(constraints)) + ": " + str(constraint))
+            # For every board built from previous constraints, find all boards that can
+            # satisfy this next constraint by adding to it.
+            for j, board in enumerate(boards):
+                print("Processing board " + str(j+1) + "/" + str(len(boards)), end="\r")
+                next_boards.extend(list(constraint.fill_board(board, self.num_objects)))
+            print()
+            # For the first constraint, filter out boards to parallelize the process.
+            if i == 0 and parallel is not None:
+                index, cores = parallel
+                next_boards = [board for i, board in enumerate(next_boards) if i % cores == index]
+            boards = next_boards
+            next_boards = []
+            print(len(boards))
+                    
+        # Fill in the remaining undefined sectors 
+        print("Finishing boards with remaining objects")
+        for i, board in enumerate(boards):
+            print("Processing board " + str(i+1) + "/" + str(len(boards)), end="\r")
+            # Find what objects need added to this board
+            new_num_objects = self._subtract_num_objects(board)
+            # Create every permutation of the remaining objects to attempt to fit into the board 
+            perms = permutations_multi(new_num_objects)
+            
+            for perm in perms:
+                board_copy = board.copy()
+                j = 0
+                # Fill in undefined sectors with this permutation of the remaining objects
+                for i, obj in enumerate(board):
+                    if board[i] is None:
+                        board_copy[i] = perm[j]
+                        j += 1
+                        
+                next_boards.append(board_copy)
+        print()
+        return next_boards
+
 # Standard board types
-twelve_board_constraints = [CometConstraint(12), AsteroidConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
-eighteen_board_constraints = [CometConstraint(18), AsteroidConstraint(), DwarfPlanetConstraint(6), \
-                              PlanetXConstraint(), GasCloudConstraint() ]
-twentyfour_board_constraints = [ CometConstraint(24), AsteroidConstraint(), DwarfPlanetConstraint(6), \
-                                BlackHoleConstraint(), PlanetXConstraint(), GasCloudConstraint() ]
+twelve_board_constraints = [CometRule(12), AdjacentSelfRule(SpaceObject.Asteroid, RuleQualifier.EVERY), \
+                            AdjacentRule(SpaceObject.PlanetX, SpaceObject.DwarfPlanet, RuleQualifier.NONE),
+                            AdjacentRule(SpaceObject.GasCloud, SpaceObject.Empty, RuleQualifier.EVERY) ]
+
+
+eighteen_board_constraints = [CometRule(18), AdjacentSelfRule(SpaceObject.Asteroid, RuleQualifier.EVERY),
+                             BandRule(SpaceObject.DwarfPlanet, 6, Precision.STRICT), 
+                             AdjacentRule(SpaceObject.PlanetX, SpaceObject.DwarfPlanet, RuleQualifier.NONE),
+                             AdjacentRule(SpaceObject.GasCloud, SpaceObject.Empty, RuleQualifier.EVERY)]
+
+twentyfour_board_constraints = [CometRule(24), AdjacentSelfRule(SpaceObject.Asteroid, RuleQualifier.EVERY),
+                               BandRule(SpaceObject.DwarfPlanet, 6, Precision.STRICT),
+                               AdjacentRule(SpaceObject.PlanetX, SpaceObject.DwarfPlanet, RuleQualifier.NONE),
+                               AdjacentRule(SpaceObject.PlanetX, SpaceObject.BlackHole, RuleQualifier.NONE),
+                               AdjacentRule(SpaceObject.BlackHole, SpaceObject.Empty, RuleQualifier.NONE),
+                               AdjacentRule(SpaceObject.GasCloud, SpaceObject.Empty, RuleQualifier.EVERY)]
 
 twelve_board_numbers = {
     SpaceObject.PlanetX: 1,

@@ -187,3 +187,21 @@ def get_game(game_code):
     cxn.close()
  
     return game
+
+def get_game_codes():
+    """
+    Returns a list of all game codes that currently exist
+    """
+    cxn = get_connection()
+    cursor = cxn.cursor()
+    
+    game_code_query = "SELECT game_code FROM games"
+    
+    cursor.execute(game_code_query)    
+    
+    game_codes = [row[0] for row in cursor.fetchall()]
+    
+    cursor.close()
+    cxn.close()
+    
+    return game_codes
