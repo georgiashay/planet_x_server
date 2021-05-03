@@ -2,6 +2,7 @@ import json
 import os
 
 import mysql.connector
+import mysql.connector.pooling
 
 from .board import *
 from .board_type import * 
@@ -13,14 +14,21 @@ credsfile = os.path.join(dirname, "creds.json")
 
 with open(credsfile, "r") as f:
     creds = json.load(f)
+    
+dbconfig = {
+    "password": creds["password"],
+    "database": creds["database"],
+    "user": creds["username"],
+    "host": creds["hostname"]
+}
+
+cnxpool = mysql.connector.pooling.MySQLConnectionPool(pool_name = "mypool", pool_size = 3, **dbconfig)
 
 def get_connection():
     """
     Gets a mysql database connection to perform operations with
     """
-    cxn = mysql.connector.connect(user=creds["username"], password=creds["password"],
-                                 host=creds["hostname"], database=creds["database"])
-    return cxn
+    return cnxpool.get_connection()
 
 def add_game(game, game_code):
     """
@@ -259,16 +267,16 @@ def get_session_codes():
     
     return session_codes
 
-def create_session(session_code, gid):
+def create_session(session_code, num_sectors, gid):
     """
     Creates a session with a particular session code and game id
     """
     cxn = get_connection()
     cursor = cxn.cursor()
     
-    session_query = "INSERT INTO sessions (session_code, game_id) VALUES (%s, %s);"
+    session_query = "INSERT INTO sessions (session_code, game_size, game_id) VALUES (%s, %s, %s);"
     
-    cursor.execute(session_query, (session_code, gid))
+    cursor.execute(session_query, (session_code, num_sectors, gid))
     cxn.commit()
     
     session_id = cursor.lastrowid
@@ -289,12 +297,13 @@ def get_session_by_code(session_code):
     
     cursor.execute(session_query, (session_code,))
     
-    session_id, session_code, game_id, first_rot, current_sector, action_type, action_player = cursor.fetchone()
+    session_id, session_code, game_size, game_id, first_rot, \
+    current_sector, action_type, action_player = cursor.fetchone()
     
     cursor.close()
     cxn.close()
     
-    return session_id, session_code, game_id, bool(first_rot), current_sector, action_type, action_player
+    return session_id, session_code, game_size, game_id, bool(first_rot), current_sector, action_type, action_player
 
 def get_session_by_id(session_id):
     """
@@ -307,12 +316,13 @@ def get_session_by_id(session_id):
     
     cursor.execute(session_query, (session_id,))
     
-    session_id, session_code, game_id, first_rot, current_sector, action_type, action_player = cursor.fetchone()
+    session_id, session_code, game_size, game_id, first_rot, \
+    current_sector, action_type, action_player = cursor.fetchone()
     
     cursor.close()
     cxn.close()
     
-    return session_id, session_code, game_id, bool(first_rot), current_sector, action_type, action_player
+    return session_id, session_code, game_size, game_id, bool(first_rot), current_sector, action_type, action_player
 
 def get_theories_for_session(session_id):
     """
