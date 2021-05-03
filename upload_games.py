@@ -12,9 +12,10 @@ if __name__ == "__main__":
     else:
         try:
             input_filename = sys.argv[1]
-            chunk_size = int(sys.argv[2])
+            code_length = int(sys.argv[2])
+            chunk_size = int(sys.argv[3])
             
-            GameGenerator.add_to_database(input_filename, chunk_size=chunk_size)
+            GameGenerator.add_to_database(input_filename, code_length, chunk_size=chunk_size)
         except Exception as e:
             print(e)
             print(help_string)

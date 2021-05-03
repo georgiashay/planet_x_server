@@ -1,7 +1,7 @@
 import sys 
 
-from server.board_type import *
-from server.board import *
+from planetx_game.board_type import *
+from planetx_game.board import *
 
 help_string = "Usage: python generate_boards.py [number of sectors] [core number 0...n-1] [number of cores n] [# boards per chunk] [output file name]"
 

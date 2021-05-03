@@ -14,7 +14,7 @@ class BoardType:
         constraints for placing space objects on the board, and the number
         of research and conference rules for the game.
     """
-    def __init__(self, constraints, num_objects, num_research, num_conference):
+    def __init__(self, constraints, num_objects, num_research, num_conference, theory_phase_interval, conference_phases):
         """
         Creates a BoardType.
         
@@ -29,6 +29,9 @@ class BoardType:
         self.board_length = sum(num_objects[t] for t in num_objects)
         self.num_research = num_research
         self.num_conference = num_conference
+        self.theory_phase_interval = theory_phase_interval
+        self.theory_phases = list(range(theory_phase_interval-1, self.board_length, theory_phase_interval))
+        self.conference_phases = conference_phases
     
     def unconstrained_objects(self):
         """
@@ -397,9 +400,14 @@ twentyfour_board_numbers = {
     SpaceObject.BlackHole: 1
 }
 
-twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers, 6, 1)
-eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers, 6, 2)
-twentyfour_type = BoardType(twentyfour_board_constraints, twentyfour_board_numbers, 7, 3)
+# 0-indexed sectors
+twelve_conference_phases = [8]
+eighteen_conference_phases = [6, 15]
+twentyfour_conference_phases = [6, 15, 21]
+
+twelve_type = BoardType(twelve_board_constraints, twelve_board_numbers, 6, 1, 3, twelve_conference_phases)
+eighteen_type = BoardType(eighteen_board_constraints, eighteen_board_numbers, 6, 2, 3, eighteen_conference_phases)
+twentyfour_type = BoardType(twentyfour_board_constraints, twentyfour_board_numbers, 7, 3, 3, twentyfour_conference_phases)
 
 sector_types = {
     12: twelve_type,

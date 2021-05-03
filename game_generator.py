@@ -1,5 +1,5 @@
-from server.game import *
-import server.db_ops as db_ops
+from planetx_game.game import *
+import planetx_game.db_ops as db_ops
 
 class GameGenerator:
     @classmethod
@@ -109,6 +109,7 @@ class GameGenerator:
             i = int(i/8)
             # Extract letter index by taking modulo
             l = i % 24
+
             # Turn letter index into a letter, skipping O and I
             if l < 8:
                 c = chr(l + 65)
@@ -125,61 +126,14 @@ class GameGenerator:
         return code 
     
     @staticmethod
-    def _generate_game_codes(total_games, one_code_length=True):
+    def _generate_game_codes(total_games, code_length):
         """
         Generate a random set of game codes for a given number of games
         """
         existing_codes = db_ops.get_game_codes()
-        existing_ints = sorted({GameGenerator._code_to_int(code) for code in existing_codes})
-        
-        if len(existing_ints):
-            max_existing = existing_ints[-1]
-            
-            available_ints = []
-            for i, next_i in zip(existing_ints, existing_ints[1:]):
-                available_ints.extend(list(range(i+1, next_i)))
-            
-            available_ints.append(max_existing + 1)
-        
-        else:
-            available_ints = [0]
-        
-  
-        additional_needed = total_games - len(available_ints)
-        
-        if additional_needed >= 0:
-            min_max_needed = available_ints[-1] + additional_needed
-
-             # Determine the code length needed for that number of games
-            code_length = 0
-            n = min_max_needed
-            while n > 0:
-                code_length += 2
-                n = int(n/(24 * 8))
-
-            max_code = (24*8)**(code_length//2)
-            available_ints.extend(list(range(available_ints[-1]+1, max_code)))
-            
-        else:
-            code_length = 0
-                       
-            def index_generator(l):
-                i = 0
-                cutoff = yield 
-                while i < len(l):
-                    while i < len(l) and l[i] < cutoff:
-                        i += 1
-                    cutoff = yield i
-
-            g = index_generator(available_ints)
-            next(g)
-            i = 0
-            while i < total_games:
-                max_code = (3)**(code_length//2)
-                i = g.send(max_code)
-                code_length += 2
-
-            available_ints = available_ints[:i]
+        existing_ints = {GameGenerator._code_to_int(code) for code in existing_codes if len(code) == code_length}
+        max_code = (24*8)**(code_length//2)
+        available_ints = set(range(max_code)) - existing_ints
 
         # Take a random sample of integers up to the maximum possible for that code length
         nums = random.sample(available_ints, total_games)
@@ -188,7 +142,7 @@ class GameGenerator:
         return codes
         
     @classmethod
-    def add_to_database(cls, input_filename, chunk_size=float('inf')):
+    def add_to_database(cls, input_filename, code_length, chunk_size=float('inf')):
         """
         Add games in game file to database. Assumes that no games exist in the database to 
         start.
@@ -204,8 +158,7 @@ class GameGenerator:
             num_games = i + 1
             
         # Create a unique game code for each game
-        # Note that this assumes no game codes have been already used
-        game_codes = GameGenerator._generate_game_codes(num_games)
+        game_codes = GameGenerator._generate_game_codes(num_games, code_length)
         print("Generated " + str(len(game_codes)) + " codes")
 
         # Read all game strings

@@ -648,7 +648,11 @@ class OppositeRule(RelationRule):
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
             return len(opposite_idxs) > 0
         else:
-            return len(opposite_idxs) == board.num_objects()[self.space_object1]
+            if self.space_object in board.num_objects():
+                num_obj = board.num_objects()[self.space_object1]
+            else:
+                num_obj = 0
+            return len(opposite_idxs) == num_obj
     
     def is_immediately_limiting(self):
         return False
@@ -982,7 +986,11 @@ class WithinRule(RelationRule):
             if self.qualifier is RuleQualifier.AT_LEAST_ONE:
                 return num_within > 0
             else:
-                return num_within == board.num_objects()[self.space_object1]
+                if self.space_object in board.num_objects():
+                    num_obj = board.num_objects()[self.space_object1]
+                else:
+                    num_obj = 0
+                return num_within == num_obj
     
     def is_immediately_limiting(self):
         return False
