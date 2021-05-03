@@ -9,3 +9,4 @@ creds.json
 *.key
 Data/
 Test/
+node_modules
