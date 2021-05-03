@@ -2,6 +2,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const { createBroker } = require('pubsub-ws');
 const express = require('express');
+const operations = require('./dbOps');
 
 const app = express();
 
