@@ -145,6 +145,7 @@ class SpaceObject {
       case "X": return SpaceObject.PlanetX;
       case "G": return SpaceObject.GasCloud;
       case "B": return SpaceObject.BlackHole;
+      case "-": return null;
     }
   }
 
@@ -584,11 +585,30 @@ class SectorsRule extends SelfRule {
   }
 }
 
+class BoardType {
+  constructor(boardSize, numObjects, theoryPhaseInterval, conferencePhases) {
+    this.boardSize = boardSize;
+    this.numObjects = numObjects;
+    this.theoryPhaseInterval = theoryPhaseInterval;
+    const numTheoryPhases = Math.floor(boardSize/theoryPhaseInterval);
+    this.theoryPhases = Array.from(numTheoryPhases).map((el, i) => ((i+1) * theoryPhaseInterval) - 1);
+    this.conferencePhases = conferencePhases;
+  }
+}
+
+const SECTOR_TYPES = {
+  12: new BoardType(12, {X: 1, E: 2, G: 2, D: 1, A: 4, C: 2}, 3, [8]),
+  18: new BoardType(18, {X: 1, E: 5, G: 2, D: 4, A: 4, C: 2}, 3, [6, 15]),
+  24: new BoardType(24, {X: 1, E: 6, G: 3, D: 4, A: 6, C: 3, B: 1}, 3, [6, 15, 21])
+};
+
 module.exports = {
   Game,
   SpaceObject,
   Board,
   StartingInformation,
   Conference,
-  Research
+  Research,
+  BoardType,
+  SECTOR_TYPES
 };

@@ -4,6 +4,8 @@ const creds = require("./creds.json");
 const { Game, SpaceObject, StartingInformation,
         Research, Conference, Board } = require("./game");
 
+const { Turn, Action, Theory, Player, ActionType } = require("./sessionObjects");
+
 const pool  = mysql.createPool({
     host     : creds.hostname,
     user     : creds.username,
@@ -118,25 +120,42 @@ const operations = {
     return results.map((row) => row.session_code);
   },
   createSession: async function(sessionCode, numSectors, gameID) {
-    await queryPromise("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
+    const { results } = await queryPromise("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
+    return results.insertId;
   },
   getSessionByCode: async function(sessionCode) {
     const { results } = await queryPromise("SELECT * FROM sessions WHERE session_code = ?", [sessionCode]);
-    // TODO: process into session
-    return results[0];
+    return {
+      sessionID: results[0].id,
+      sessionCode: results[0].session_code,
+      gameSize: results[0].game_size,
+      gameID: results[0].game_id,
+      firstRotation: !!results[0].first_rotation,
+      currentSector: results[0].current_sector,
+      actionType: results[0].current_action,
+      actionPlayer: results[0].action_player
+    };
   },
   getSessionByID: async function(sessionID) {
-    const { results } = await queryPromise("SELECT * FROM sessions WHERE session_id = ?", [sessionID]);
-    // TODO: process into session
-    return results[0];
+    const { results } = await queryPromise("SELECT * FROM sessions WHERE id = ?", [sessionID]);
+    return {
+      sessionID: results[0].id,
+      sessionCode: results[0].session_code,
+      gameSize: results[0].game_size,
+      gameID: results[0].game_id,
+      firstRotation: !!results[0].first_rotation,
+      currentSector: results[0].current_sector,
+      actionType: results[0].current_action,
+      actionPlayer: results[0].action_player
+    };
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    // TODO: process into theories
-    return results;
+    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, row.player_id, row.progress));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
+    return results.map((row) => new Player(row.id, row.num, row.name, row.sector, row.arrival));
   },
   newPlayer: async function(sessionCode, name, creator) {
     const connection = await getPoolConnection();
@@ -147,9 +166,15 @@ const operations = {
       await queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, resolved) VALUES('START_GAME', ?, FALSE);", [results[0]["@PlayerID"]]);
     }
     connection.release();
+
+    return {
+      sessionID: results[0]["@SessionID"],
+      playerNum: results[0]["@PlayerNum"],
+      playerID: results[0]["@PlayerID"]
+    }
   },
   movePlayer: async function(playerID, sector, arrival) {
-    await queryPromise("UPDATE players SET sector = %s, arrival = %s WHERE id = ?", [sector, arrival, playerID]);
+    await queryPromise("UPDATE players SET sector = ?, arrival = ? WHERE id = ?", [sector, arrival, playerID]);
   },
   createTheory: async function(sessionID, playerID, spaceObject, sector) {
     await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress) VALUES (?, ?, ?, ?, 0);", [sessionID, playerID, spaceObject, sector]);
@@ -167,8 +192,7 @@ const operations = {
       WHERE actions.resolved IS FALSE AND actions.player_id = players.id
       AND players.session_id = ?`, [sessionID]);
 
-    //TODO: process results into actions
-    return results;
+    return results.map((row) => new Action(ActionType[row.action_type], row.player_id, row.id));
   },
   getPreviousTurns: async function(sessionID) {
     const { results } = await queryPromise(
@@ -179,8 +203,7 @@ const operations = {
       [sessionID]
     );
 
-    //TODO: process results into turns
-    return results;
+    return results.map((row) => Turn.parse(row.resolve_action, row.player_id, row.resolve_time));
   },
   createAction: async function(actionType, playerID) {
     await queryPromise("INSERT INTO actions(action_type, player_id, resolved) VALUES(?, ?, FALSE);", [actionType, playerID]);
@@ -188,11 +211,10 @@ const operations = {
   getCurrentAction: async function(playerID) {
     const { results } = await queryPromise("SELECT id, action_type, player_id FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
 
-    //TODO: process result into action
     if (results.length == 0) {
       return null;
     } else {
-      return results[0];
+      return new Action(ActionType[results[0].action_type], results[0].player_id, results[0].id);
     }
   },
   resolveAction: async function(actionID, turn) {
@@ -207,7 +229,7 @@ const operations = {
       turnCode = "";
     } else {
       turnTime = turn.time;
-      turnCode = turn.code;
+      turnCode = turn.code();
     }
 
     await queryPromise("UPDATE actions SET resolved = TRUE, resolve_time = ?, resolve_action = ? WHERE id = ?;", [turnTime, turnCode, actionID]);
