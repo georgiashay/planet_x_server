@@ -216,7 +216,8 @@ class Session {
     const nextSector = await this.getNextSector();
     const players = await this.getPlayers();
     const nextPlayer = players.filter((p) => p.sector === nextSector)
-                              .reduce((a, b) => Math.min(a.arrival, b.arrival));
+                              .sort((a, b) => a.arrival - b.arrival)[0];
+
     return { nextSector, nextPlayer };
   }
 
@@ -240,7 +241,8 @@ class Session {
       firstRotation: this.firstRotation,
       currentSector: this.currentSector,
       currentAction: this.currentAction.json(),
-      sessionID: this.sessionID
+      sessionID: this.sessionID,
+      sessionCode: this.code
     }
   }
 }
@@ -267,6 +269,8 @@ class SessionManager {
     }
 
     const { playerNum, playerID } = await operations.newPlayer(sessionCode, name, false);
+    session.refreshPlayers();
+    this.notifySubscribers(session);
     return { playerID, playerNum, session } ;
   }
 
@@ -303,7 +307,6 @@ class SessionManager {
     }
 
     const session = await Session.findByID(sessionID);
-
     this.notifySubscribers(session);
   }
 
@@ -416,6 +419,9 @@ class SessionManager {
       await this.nextAction(session);
     }
 
+    session.refreshActions();
+    session.refreshTheories();
+    session.refreshStatus();
     this.notifySubscribers(session);
 
     return {
@@ -437,6 +443,8 @@ class SessionManager {
       await this.nextAction(session);
     }
 
+    session.refreshActions();
+    session.refreshStatus();
     this.notifySubscribers(session);
     return true;
   }
@@ -464,7 +472,9 @@ class SessionManager {
 
     const session = await Session.findByID(sessionID);
 
-    if (turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful) {
+    if (currentAction.actionType !== ActionType.LAST_ACTION &&
+      turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful) {
+
       const players = await session.getPlayers();
       for (let i = 0; i < players.length; i++) {
         const player = players[i];
@@ -484,6 +494,7 @@ class SessionManager {
       }
     }
 
+    session.refresh();
     this.notifySubscribers(session);
     return true;
   }
