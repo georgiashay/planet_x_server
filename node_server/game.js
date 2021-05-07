@@ -162,7 +162,7 @@ class SpaceObject {
   }
 
   proper() {
-    const words = this.name.split();
+    const words = this.name.split(" ");
     const properWords = words.map((word) => word.slice(0, 1).toUpperCase() + word.slice(1));
     return properWords.join(" ");
   }
@@ -538,8 +538,8 @@ class BandRule extends SelfRule {
 
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
-    const bandSize = parseInt(s[2]);
-    const precision = Precision.parse(s[3])
+    const bandSize = parseInt(s.slice(2, s.length-1));
+    const precision = Precision.parse(s[s.length-1])
     return new BandRule(spaceObject, bandSize, precision);
   }
 
@@ -586,20 +586,22 @@ class SectorsRule extends SelfRule {
 }
 
 class BoardType {
-  constructor(boardSize, numObjects, theoryPhaseInterval, conferencePhases) {
+  constructor(boardSize, numObjects, theoryPhaseInterval, conferencePhases, theoriesPerTurn, numTargets) {
     this.boardSize = boardSize;
     this.numObjects = numObjects;
     this.theoryPhaseInterval = theoryPhaseInterval;
     const numTheoryPhases = Math.floor(boardSize/theoryPhaseInterval);
     this.theoryPhases = Array.from(numTheoryPhases).map((el, i) => ((i+1) * theoryPhaseInterval) - 1);
     this.conferencePhases = conferencePhases;
+    this.theoriesPerTurn = theoriesPerTurn;
+    this.numTargets = numTargets;
   }
 }
 
 const SECTOR_TYPES = {
-  12: new BoardType(12, {X: 1, E: 2, G: 2, D: 1, A: 4, C: 2}, 3, [8]),
-  18: new BoardType(18, {X: 1, E: 5, G: 2, D: 4, A: 4, C: 2}, 3, [6, 15]),
-  24: new BoardType(24, {X: 1, E: 6, G: 3, D: 4, A: 6, C: 3, B: 1}, 3, [6, 15, 21])
+  12: new BoardType(12, {X: 1, E: 2, G: 2, D: 1, A: 4, C: 2}, 3, [8], 1, 2),
+  18: new BoardType(18, {X: 1, E: 5, G: 2, D: 4, A: 4, C: 2}, 3, [6, 15], 2, 2),
+  24: new BoardType(24, {X: 1, E: 6, G: 3, D: 4, A: 6, C: 3, B: 1}, 3, [6, 15, 21], 2, 3)
 };
 
 module.exports = {

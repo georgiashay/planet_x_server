@@ -4,7 +4,7 @@ const operations = require("./dbOps");
 const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
-        LocateTurn, TargetTurn } = require("./sessionObjects");
+        LocateTurn, TargetTurn, TheoryTurn } = require("./sessionObjects");
 
 class Session {
   constructor(sessionID, code, boardLength, gameID, firstRotation,
@@ -99,6 +99,9 @@ class Session {
 
   static async findByID(sessionID) {
     const info = await operations.getSessionByID(sessionID);
+    if (info == null) {
+      return null;
+    }
     return new Session(
       info.sessionID, info.sessionCode, info.gameSize, info.gameID,
       info.firstRotation, info.currentSector,
@@ -108,6 +111,9 @@ class Session {
 
   static async findByCode(sessionCode) {
     const info = await operations.getSessionByCode(sessionCode);
+    if (info == null) {
+      return null;
+    }
     return new Session(
       info.sessionID, info.sessionCode, info.gameSize, info.gameID,
       info.firstRotation, info.currentSector,
@@ -190,22 +196,31 @@ class Session {
 
   async getNextSector() {
     const players = await this.getPlayers();
+
+    if (players.length == 1) {
+      return players[0].sector;
+    }
+
     players.sort((a, b) => a.sector - b.sector);
 
-    let maxDiff = this.boardLength;
+    let maxDiff = 0;
     let sector = players[0].sector;
 
     for (let i = -1; i < players.length - 1; i++) {
       let diff;
       if (i > 0) {
-        diff = players[i+1] - players[i];
+        diff = players[i+1].sector - players[i].sector;
       } else {
-        diff = players[0] - players[players.length - 1];
+        diff = players[0].sector - players[players.length - 1].sector;
+
+        if (diff < 0) {
+          diff += this.boardLength;
+        }
       }
 
       if (diff > maxDiff) {
         maxDiff = diff;
-        sector = i;
+        sector = players[(i+1)%players.length].sector;
       }
     }
 
@@ -234,7 +249,7 @@ class Session {
       this.getHistory()
     ]);
     return {
-      players: this.players.map((p) => p.json()),
+      players: this.players.sort((a, b) => a.num - b.num).map((p) => p.json()),
       theories: this.theories.map((t) => t.json()),
       actions: this.actions.map((a) => a.json()),
       history: this.history.map((t) => t.json()),
@@ -257,6 +272,7 @@ class SessionManager {
   }
 
   async notifySubscribers(session) {
+    await session.refresh();
     const j = await session.stateJson();
     const text = JSON.stringify(j);
     this.broker.publish(session.sessionID.toString(), text);
@@ -264,17 +280,24 @@ class SessionManager {
 
   async joinSession(sessionCode, name) {
     const session = await Session.findByCode(sessionCode);
+    // TODO: ensure session hasn't been started already
+    if (session == null) {
+      return {
+        playerID: undefined,
+        playerNum: undefined,
+        session: undefined
+      }
+    }
     if (session.currentAction.actionType !== ActionType.START_GAME) {
       return false;
     }
 
     const { playerNum, playerID } = await operations.newPlayer(sessionCode, name, false);
-    session.refreshPlayers();
     this.notifySubscribers(session);
     return { playerID, playerNum, session } ;
   }
 
-  async startGame(sessionID, playerID) {
+  async startSession(sessionID, playerID) {
     const currentAction = await operations.getCurrentAction(playerID);
     if (currentAction === null || currentAction.actionType !== ActionType.START_GAME) {
       return false;
@@ -346,7 +369,6 @@ class SessionManager {
 
       if (conferenceIndex >= 0) {
         const nextConference = sectorType.conferencePhases[conferenceIndex];
-
         if (nextConference < sector) {
           sector = nextConference;
           action = new Action(ActionType.CONFERENCE_PHASE, null);
@@ -376,6 +398,42 @@ class SessionManager {
     // TODO: Notify subscribers
   }
 
+  async #sectorsBehind(session, playerID) {
+    const players = await session.getPlayers();
+    players.slice().sort((a, b) => a.sector - b.sector);
+
+    if (players.length == 1) {
+      return 0;
+    }
+
+    let maxDiff = 0;
+    let sector = players[0].sector;
+
+    for (let i = 0; i < players.length - 1; i++) {
+      const diff = players[i+1].sector - players[i].sector;
+
+      if (diff > maxDiff) {
+        maxDiff = diff;
+        sector = players[i].sector;
+      }
+    }
+
+    const lastDiff = players[0].sector - players[players.length-1].sector + session.boardLength;
+    if (lastDiff > maxDiff) {
+      maxDiff = lastDiff;
+      sector = players[players.length-1].sector;
+    }
+
+    const mySector = players.filter((p) => p.playerID === playerID)[0].sector;
+
+    let behind = sector - mySector;
+    if (behind < 0) {
+      behind += session.boardLength;
+    }
+
+    return behind;
+  }
+
   async submitTheories(sessionID, playerID, theories) {
     const currentAction = await operations.getCurrentAction(playerID);
 
@@ -387,41 +445,63 @@ class SessionManager {
       };
     }
 
-    // TODO: Limit number of theories allowed on last action
-
     const session = await Session.findByID(sessionID);
+
+    let maxTheories;
+
+    if (currentAction.actionType === ActionType.LAST_ACTION) {
+      const sectorsBehind = this.#sectorsBehind(session, playerID);
+
+      if (sectorsBehind <= 3) {
+        maxTheories = 1;
+      } else {
+        maxTheories = 2;
+      }
+    } else {
+      maxTheories = SECTOR_TYPES[session.boardLength].theoriesPerTurn;
+    }
+
+    theories = theories.slice(0, maxTheories);
+
     const existingTheories = await session.getTheories();
+    const myTheories = existingTheories.filter((theory) => theory.playerID === playerID);
     const numObjects = SECTOR_TYPES[session.boardLength].numObjects;
 
     const tokensLeft = Object.assign({}, numObjects);
-    for (let i = 0; i < existingTheories.length; i++) {
-      if (existingTheories[i].playerID === playerID) {
-        tokensLeft[existingTheories[i].spaceObject] -= 1;
-      }
+    for (let i = 0; i < myTheories.length; i++) {
+      tokensLeft[existingTheories[i].spaceObject.initial] -= 1;
     }
 
-    const revealedSectors = new Set(existingTheories.filter((theory) => theory.revealed()).map((theory) => theory.sector));
+    const board = (await session.getGame()).board;
+    const revealedSectors = new Set(existingTheories.filter((theory) => theory.revealed() && theory.accurate(board)).map((theory) => theory.sector));
 
     let successfulTheories = [];
     for (let i = 0; i < theories.length; i++) {
       const theory = theories[i];
-      if (tokensLeft[theory.spaceObject.initial] > 0 && !revealedSectors.has(theory.sector)) {
+      const hasTokens = tokensLeft[theory.spaceObject.initial] > 0;
+      const notRevealed = !revealedSectors.has(theory.sector);
+      const uniqueSector = !successfulTheories.some((t) => t.sector === theory.sector);
+      const uniqueObject = !myTheories.some((t) => t.spaceObject.initial === theory.spaceObject.initial && t.sector === theory.sector);
+
+      if (hasTokens && notRevealed && uniqueSector && uniqueObject) {
         await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector);
         successfulTheories.push(theory);
+        tokensLeft[theory.spaceObject.initial] -= 1;
       }
     }
 
-    await operations.resolveAction(currentAction.actionID, null);
+    await operations.resolveAction(currentAction.actionID, new TheoryTurn(successfulTheories, playerID, new Date()));
     const actions = await session.getActions();
 
     if (actions.length === 0) {
-      await this.advanceTheories(session.sessionID);
-      await this.nextAction(session);
+      if (currentAction.actionType === ActionType.LAST_ACTION) {
+        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
+      } else {
+        await this.advanceTheories(session.sessionID);
+        await this.nextAction(session);
+      }
     }
 
-    session.refreshActions();
-    session.refreshTheories();
-    session.refreshStatus();
     this.notifySubscribers(session);
 
     return {
@@ -443,8 +523,6 @@ class SessionManager {
       await this.nextAction(session);
     }
 
-    session.refreshActions();
-    session.refreshStatus();
     this.notifySubscribers(session);
     return true;
   }
@@ -464,25 +542,41 @@ class SessionManager {
       return false;
     }
 
+    const session = await Session.findByID(sessionID);
+
+    if (turn.turnType === TurnType.TARGET) {
+      const history = await session.getHistory();
+      const previousTargets = history.filter((turn) => turn.playerID === playerID && turn.turnType === TurnType.TARGET);
+      const allowedTargets = SECTOR_TYPES[session.boardLength].numTargets;
+      if (previousTargets.length >= allowedTargets) {
+        return false;
+      }
+    }
+
     if (currentAction.actionType !== ActionType.LAST_ACTION) {
       await operations.advancePlayer(playerID, sectors);
     }
 
     await operations.resolveAction(currentAction.actionID, turn);
 
-    const session = await Session.findByID(sessionID);
 
     if (currentAction.actionType !== ActionType.LAST_ACTION &&
       turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful) {
 
       const players = await session.getPlayers();
-      for (let i = 0; i < players.length; i++) {
-        const player = players[i];
-        if (player.playerID !== playerID) {
-          await operations.createAction(ActionType.LAST_ACTION, player.playerID);
+      if (players.length > 1) {
+        for (let i = 0; i < players.length; i++) {
+          const player = players[i];
+          if (player.playerID !== playerID) {
+            await operations.createAction(ActionType.LAST_ACTION, player.playerID);
+          }
         }
+
+        await operations.setCurrentAction(sessionID, new Action(ActionType.LAST_ACTION, null));
+      } else {
+        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
       }
-      await operations.setCurrentAction(sessionID, new Action(ActionType.LAST_ACTION, null));
+
     } else {
       const actions = await session.getActions();
       if (actions.length == 0) {
@@ -494,7 +588,6 @@ class SessionManager {
       }
     }
 
-    session.refresh();
     this.notifySubscribers(session);
     return true;
   }

@@ -83,6 +83,14 @@ const operations = {
   },
   getGameByID: async function(gameID) {
     const { results } = await queryPromise("SELECT * FROM games WHERE id = ?", [gameID]);
+    if (results.length == 0) {
+      return {
+        game: undefined,
+        gameCode: undefined,
+        gameID: undefined
+      }
+    }
+
     const gameRow = results[0];
 
     const game = new Game(
@@ -100,6 +108,14 @@ const operations = {
   },
   getGameByGameCode: async function(gameCode) {
     const { results } = await queryPromise("SELECT * from games WHERE game_code = ?", [gameCode]);
+    if (results.length == 0) {
+      return {
+        game: undefined,
+        gameCode: undefined,
+        gameID: undefined
+      }
+    }
+
     const gameRow = results[0];
 
     const game = new Game(
@@ -125,6 +141,9 @@ const operations = {
   },
   getSessionByCode: async function(sessionCode) {
     const { results } = await queryPromise("SELECT * FROM sessions WHERE session_code = ?", [sessionCode]);
+    if (results.length == 0) {
+      return null;
+    }
     return {
       sessionID: results[0].id,
       sessionCode: results[0].session_code,
@@ -138,6 +157,9 @@ const operations = {
   },
   getSessionByID: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM sessions WHERE id = ?", [sessionID]);
+    if (results.length == 0) {
+      return null;
+    }
     return {
       sessionID: results[0].id,
       sessionCode: results[0].session_code,
@@ -151,7 +173,7 @@ const operations = {
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, row.player_id, row.progress));
+    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, row.player_id, row.progress, row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
@@ -180,7 +202,7 @@ const operations = {
     await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress) VALUES (?, ?, ?, ?, 0);", [sessionID, playerID, spaceObject, sector]);
   },
   advanceTheories: async function(sessionID) {
-    await queryPromise("UPDATE theories SET progress = progress + 1 WHERE progress < 4 AND session_id = ?;", [sessionID]);
+    await queryPromise("UPDATE theories SET progress = progress + 1 WHERE progress < 3 AND session_id = ?;", [sessionID]);
   },
   advancePlayer: async function(playerID, sectors) {
     await queryPromise("CALL MovePlayer(?, ?)", [playerID, sectors]);
@@ -198,7 +220,8 @@ const operations = {
     const { results } = await queryPromise(
       `SELECT actions.player_id, actions.resolve_time, actions.resolve_action
       FROM actions, players
-      WHERE actions.resolved IS TRUE AND actions.action_type = 'PLAYER_TURN'
+      WHERE actions.resolved IS TRUE AND actions.action_type != 'START_GAME'
+      AND actions.action_type != 'END_GAME' AND actions.action_type != 'CONFERENCE_PHASE'
       AND actions.player_id = players.id AND players.session_id = ?`,
       [sessionID]
     );

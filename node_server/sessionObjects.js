@@ -28,7 +28,8 @@ const TurnType = {
   SURVEY: "SURVEY",
   TARGET: "TARGET",
   RESEARCH: "RESEARCH",
-  LOCATE_PLANET_X: "LOCATE_PLANET_X"
+  LOCATE_PLANET_X: "LOCATE_PLANET_X",
+  THEORY: "THEORY"
 };
 
 class Turn {
@@ -46,6 +47,7 @@ class Turn {
       case "T": return TargetTurn.parse(s, playerID, turnTime);
       case "R": return ResearchTurn.parse(s, playerID, turnTime);
       case "L": return LocateTurn.parse(s, playerID, turnTime);
+      case "G": return TheoryTurn.parse(s, playerID, turnTime);
     }
   }
 
@@ -69,7 +71,7 @@ class SurveyTurn extends Turn {
   }
 
   toString() {
-    return "Survey: " + this.spaceObject.initial + ", " + this.sectors.join("-");
+    return "Survey, " + this.spaceObject.proper() + ", " + this.sectors.map((s) => s+1).join("-");
   }
 
   code() {
@@ -103,7 +105,7 @@ class TargetTurn extends Turn {
   }
 
   toString() {
-    return "Target: Sector " + (this.sector + 1);
+    return "Target, Sector " + (this.sector + 1);
   }
 
   code() {
@@ -135,7 +137,7 @@ class ResearchTurn extends Turn {
   }
 
   toString() {
-    return "Research: " + String.fromCharCode(this.researchIndex + 65);
+    return "Research " + String.fromCharCode(this.researchIndex + 65);
   }
 
   code() {
@@ -167,7 +169,7 @@ class LocateTurn extends Turn {
   }
 
   toString() {
-    return "Locate Planet X: " + this.successful ? "success" : "failure";
+    return "Locate Planet X, " + (this.successful ? "Success" : "Fail");
   }
 
   code() {
@@ -187,6 +189,46 @@ class LocateTurn extends Turn {
   static parse(s, playerID, turnTime) {
     const successful = !!+s[1];
     return new LocateTurn(successful, playerID, turnTime);
+  }
+}
+
+class TheoryTurn extends Turn {
+  turnType = TurnType.THEORY;
+
+  constructor(theories, playerID, turnTime) {
+    super(playerID, turnTime);
+    this.theories = theories;
+  }
+
+  toString() {
+    return "Submit Theories, " + this.theories.map((theory) => theory.sector + 1).join(" ");
+  }
+
+  code() {
+    return "G" + this.theories.map((theory) => theory.spaceObject.initial + theory.sector).join(",");
+  }
+
+  json() {
+    return {
+      turnType: "THEORY",
+      theories: this.theories.map((theory) => theory.json()),
+      text: this.toString(),
+      time: this.time,
+      playerID: this.playerID
+    }
+  }
+
+  static parse(s, playerID, turnTime) {
+    const theoryStrings = s.slice(1).split(",");
+    let theories = [];
+    if (s.length > 1) {
+      theories = theoryStrings.map((theoryString) => {
+        const object = SpaceObject.parse(theoryString[0]);
+        const sector = parseInt(theoryString.slice(1));
+        return new Theory(object, sector, playerID);
+      });
+    }
+    return new TheoryTurn(theories, playerID, turnTime);
   }
 }
 
@@ -210,17 +252,18 @@ class Player {
       name: this.name,
       sector: this.sector,
       arrival: this.arrival,
-      id: this.playeriD
+      id: this.playerID
     }
   }
 }
 
 class Theory {
-  constructor(spaceObject, sector, playerID=null, progress=0) {
+  constructor(spaceObject, sector, playerID=null, progress=0, id=null) {
     this.spaceObject = spaceObject;
     this.sector = sector;
     this.progress = progress;
     this.playerID = playerID;
+    this.id = id;
   }
 
   toString() {
@@ -228,8 +271,16 @@ class Theory {
             this.spaceObject.one + " " + this.spaceObject.name;
   }
 
+  code() {
+    return this.spaceObject.initial + this.sector;
+  }
+
   revealed() {
     return this.progress == 3;
+  }
+
+  accurate(board) {
+    return board.objects[this.sector].initial === this.spaceObject.initial;
   }
 
   json() {
@@ -238,8 +289,13 @@ class Theory {
       sector: this.sector,
       progress: this.progress,
       revealed: this.revealed(),
-      playerID: this.playerID
+      playerID: this.playerID,
+      id: this.id
     }
+  }
+
+  static fromJson(obj, playerID) {
+    return new Theory(SpaceObject.parse(obj.spaceObject), obj.sector, playerID);
   }
 }
 
@@ -250,6 +306,7 @@ module.exports = {
   TargetTurn,
   ResearchTurn,
   LocateTurn,
+  TheoryTurn,
   ActionType,
   Action,
   Player,
