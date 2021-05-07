@@ -98,7 +98,7 @@ app.post("/startSession/", function(req, res, next) {
 app.post("/submitTheories/", function(req, res, next) {
   const sessionID = parseInt(req.query.sessionID);
   const playerID = parseInt(req.query.playerID);
-  const theories = req.body.theories.map((t) => Theory.fromJson(t, playerID));
+  const theories = req.body.theories.map((t) => Theory.fromJson(t));
   sessionManager.submitTheories(sessionID, playerID, theories).then((result) => {
     res.json(result);
   });

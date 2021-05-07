@@ -258,11 +258,12 @@ class Player {
 }
 
 class Theory {
-  constructor(spaceObject, sector, playerID=null, progress=0, id=null) {
+  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, id=null) {
     this.spaceObject = spaceObject;
     this.sector = sector;
     this.progress = progress;
     this.playerID = playerID;
+    this.accurate = accuracy;
     this.id = id;
   }
 
@@ -279,23 +280,25 @@ class Theory {
     return this.progress == 3;
   }
 
-  accurate(board) {
-    return board.objects[this.sector].initial === this.spaceObject.initial;
+  setAccuracy(board) {
+    const accuracy = board.objects[this.sector].initial === this.spaceObject.initial;
+    this.accurate = accuracy;
   }
 
-  json() {
+  json(board) {
     return {
       spaceObject: this.spaceObject.json(),
       sector: this.sector,
       progress: this.progress,
       revealed: this.revealed(),
+      accurate: this.accurate,
       playerID: this.playerID,
       id: this.id
     }
   }
 
-  static fromJson(obj, playerID) {
-    return new Theory(SpaceObject.parse(obj.spaceObject), obj.sector, playerID);
+  static fromJson(obj) {
+    return new Theory(SpaceObject.parse(obj.spaceObject), obj.sector);
   }
 }
 

@@ -246,7 +246,8 @@ class Session {
       this.getPlayers(),
       this.getTheories(),
       this.getActions(),
-      this.getHistory()
+      this.getHistory(),
+      this.getGame()
     ]);
     return {
       players: this.players.sort((a, b) => a.num - b.num).map((p) => p.json()),
@@ -478,13 +479,14 @@ class SessionManager {
     let successfulTheories = [];
     for (let i = 0; i < theories.length; i++) {
       const theory = theories[i];
+      theory.setAccuracy(board);
       const hasTokens = tokensLeft[theory.spaceObject.initial] > 0;
       const notRevealed = !revealedSectors.has(theory.sector);
       const uniqueSector = !successfulTheories.some((t) => t.sector === theory.sector);
       const uniqueObject = !myTheories.some((t) => t.spaceObject.initial === theory.spaceObject.initial && t.sector === theory.sector);
 
       if (hasTokens && notRevealed && uniqueSector && uniqueObject) {
-        await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector);
+        await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector, theory.accurate);
         successfulTheories.push(theory);
         tokensLeft[theory.spaceObject.initial] -= 1;
       }

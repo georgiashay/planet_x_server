@@ -173,7 +173,7 @@ const operations = {
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, row.player_id, row.progress, row.id));
+    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
@@ -198,8 +198,8 @@ const operations = {
   movePlayer: async function(playerID, sector, arrival) {
     await queryPromise("UPDATE players SET sector = ?, arrival = ? WHERE id = ?", [sector, arrival, playerID]);
   },
-  createTheory: async function(sessionID, playerID, spaceObject, sector) {
-    await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress) VALUES (?, ?, ?, ?, 0);", [sessionID, playerID, spaceObject, sector]);
+  createTheory: async function(sessionID, playerID, spaceObject, sector, accurate) {
+    await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate) VALUES (?, ?, ?, ?, 0, ?);", [sessionID, playerID, spaceObject, sector, accurate]);
   },
   advanceTheories: async function(sessionID) {
     await queryPromise("UPDATE theories SET progress = progress + 1 WHERE progress < 3 AND session_id = ?;", [sessionID]);
