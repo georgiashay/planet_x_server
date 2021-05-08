@@ -4,7 +4,7 @@ const operations = require("./dbOps");
 const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
-        LocateTurn, TargetTurn, TheoryTurn } = require("./sessionObjects");
+        LocateTurn, TargetTurn, TheoryTurn, Score } = require("./sessionObjects");
 
 class Session {
   constructor(sessionID, code, boardLength, gameID, firstRotation,
@@ -194,6 +194,75 @@ class Session {
     return this.game;
   }
 
+  async sectorsBehind(playerID) {
+    let players = await this.getPlayers();
+    players = players.slice().sort((a, b) => a.sector - b.sector);
+
+    if (players.length == 1) {
+      return 0;
+    }
+
+    let maxDiff = 0;
+    let sector = players[0].sector;
+
+    for (let i = 0; i < players.length - 1; i++) {
+      const diff = players[i+1].sector - players[i].sector;
+
+      if (diff > maxDiff) {
+        maxDiff = diff;
+        sector = players[i].sector;
+      }
+    }
+
+    const lastDiff = players[0].sector - players[players.length-1].sector + this.boardLength;
+    if (lastDiff > maxDiff) {
+      maxDiff = lastDiff;
+      sector = players[players.length-1].sector;
+    }
+
+    const mySector = players.filter((p) => p.playerID === playerID)[0].sector;
+
+    let behind = sector - mySector;
+    if (behind < 0) {
+      behind += this.boardLength;
+    }
+
+    return behind;
+  }
+
+  async getScores() {
+    const players = await this.getPlayers();
+    const correctTheories = (await this.getTheories()).filter((theory) => theory.revealed() && theory.accurate).sort((a, b) => b.progress - a.progress);
+    const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful);
+
+    const scores = {};
+    for (let i = 0; i < players.length; i++) {
+      scores[players[i].playerID] = new Score(players[i].playerID, 0, 0, SECTOR_TYPES[this.boardLength].scoreValues);
+    }
+
+    const theorySectors = {};
+    for (let i = 0; i < correctTheories.length; i++) {
+      const theory = correctTheories[i];
+      if (!theorySectors.hasOwnProperty(theory.sector) || theorySectors[theory.sector] === theory.progress) {
+        scores[theory.playerID].addFirstPoint();
+        theorySectors[theory.sector] = theory.progress;
+      }
+      scores[theory.playerID].addPoints(theory.spaceObject.initial);
+    }
+
+    for (let i = 0; i < planetXTurns.length; i++) {
+      const turn = planetXTurns[i];
+      if (i === 0) {
+        scores[turn.playerID].setPlanetXPoints(10);
+      } else {
+        const sectorsBehind = await this.sectorsBehind(turn.playerID);
+        scores[turn.playerID].setPlanetXPoints(2*sectorsBehind);
+      }
+    }
+
+    return Object.values(scores);
+  }
+
   async getNextSector() {
     const players = await this.getPlayers();
 
@@ -242,18 +311,19 @@ class Session {
   }
 
   async stateJson() {
-    const [players, theories, actions, history] = await Promise.all([
+    const [players, theories, actions, history, scores] = await Promise.all([
       this.getPlayers(),
       this.getTheories(),
       this.getActions(),
       this.getHistory(),
-      this.getGame()
+      this.getScores()
     ]);
     return {
-      players: this.players.sort((a, b) => a.num - b.num).map((p) => p.json()),
-      theories: this.theories.map((t) => t.json()),
-      actions: this.actions.map((a) => a.json()),
-      history: this.history.map((t) => t.json()),
+      players: players.sort((a, b) => a.num - b.num).map((p) => p.json()),
+      theories: theories.map((t) => t.json()),
+      actions: actions.map((a) => a.json()),
+      history: history.map((t) => t.json()),
+      scores: scores.map((s) => s.json()),
       firstRotation: this.firstRotation,
       currentSector: this.currentSector,
       currentAction: this.currentAction.json(),
@@ -399,42 +469,6 @@ class SessionManager {
     // TODO: Notify subscribers
   }
 
-  async #sectorsBehind(session, playerID) {
-    const players = await session.getPlayers();
-    players.slice().sort((a, b) => a.sector - b.sector);
-
-    if (players.length == 1) {
-      return 0;
-    }
-
-    let maxDiff = 0;
-    let sector = players[0].sector;
-
-    for (let i = 0; i < players.length - 1; i++) {
-      const diff = players[i+1].sector - players[i].sector;
-
-      if (diff > maxDiff) {
-        maxDiff = diff;
-        sector = players[i].sector;
-      }
-    }
-
-    const lastDiff = players[0].sector - players[players.length-1].sector + session.boardLength;
-    if (lastDiff > maxDiff) {
-      maxDiff = lastDiff;
-      sector = players[players.length-1].sector;
-    }
-
-    const mySector = players.filter((p) => p.playerID === playerID)[0].sector;
-
-    let behind = sector - mySector;
-    if (behind < 0) {
-      behind += session.boardLength;
-    }
-
-    return behind;
-  }
-
   async submitTheories(sessionID, playerID, theories) {
     const currentAction = await operations.getCurrentAction(playerID);
 
@@ -451,7 +485,7 @@ class SessionManager {
     let maxTheories;
 
     if (currentAction.actionType === ActionType.LAST_ACTION) {
-      const sectorsBehind = this.#sectorsBehind(session, playerID);
+      const sectorsBehind = await session.sectorsBehind(playerID);
 
       if (sectorsBehind <= 3) {
         maxTheories = 1;
@@ -474,7 +508,7 @@ class SessionManager {
     }
 
     const board = (await session.getGame()).board;
-    const revealedSectors = new Set(existingTheories.filter((theory) => theory.revealed() && theory.accurate(board)).map((theory) => theory.sector));
+    const revealedSectors = new Set(existingTheories.filter((theory) => theory.revealed() && theory.accurate).map((theory) => theory.sector));
 
     let successfulTheories = [];
     for (let i = 0; i < theories.length; i++) {

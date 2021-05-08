@@ -258,13 +258,14 @@ class Player {
 }
 
 class Theory {
-  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, id=null) {
+  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, time=null, id=null) {
     this.spaceObject = spaceObject;
     this.sector = sector;
     this.progress = progress;
     this.playerID = playerID;
     this.accurate = accuracy;
     this.id = id;
+    this.time = time;
   }
 
   toString() {
@@ -277,7 +278,7 @@ class Theory {
   }
 
   revealed() {
-    return this.progress == 3;
+    return this.progress >= 3;
   }
 
   setAccuracy(board) {
@@ -290,15 +291,62 @@ class Theory {
       spaceObject: this.spaceObject.json(),
       sector: this.sector,
       progress: this.progress,
+      boardProgress: Math.min(this.progress, 3),
       revealed: this.revealed(),
       accurate: this.accurate,
       playerID: this.playerID,
+      time: this.time,
       id: this.id
     }
   }
 
   static fromJson(obj) {
     return new Theory(SpaceObject.parse(obj.spaceObject), obj.sector);
+  }
+}
+
+class Score {
+  constructor(playerID, firstPoints, planetXPoints, objectValues) {
+    this.playerID = playerID;
+    this.firstPoints = firstPoints;
+    this.planetXPoints = planetXPoints;
+    this.objectPointValues = objectValues;
+    this.objectPoints = Object.keys(objectValues).reduce((o, key) => Object.assign(o, {[key]: 0}), {});
+  }
+
+  total() {
+    return this.firstPoints + this.planetXPoints + Object.values(this.objectPoints).reduce((a, b) => a + b, 0);
+  }
+
+  addPoints(obj) {
+    if (!this.objectPointValues.hasOwnProperty(obj)) {
+      throw "Unknown object " + obj;
+    }
+    const points = this.objectPointValues[obj];
+
+    if (this.objectPoints.hasOwnProperty(obj)) {
+      this.objectPoints[obj] += points;
+    } else {
+      this.objectPoints[obj] = points;
+    }
+  }
+
+  addFirstPoint() {
+    this.firstPoints += 1;
+  }
+
+  setPlanetXPoints(points) {
+    this.planetXPoints = points;
+  }
+
+  json() {
+    return {
+      first: this.firstPoints,
+      planetX: this.planetXPoints,
+      objects: this.objectPoints,
+      total: this.total(),
+      playerID: this.playerID
+    }
   }
 }
 
@@ -313,5 +361,6 @@ module.exports = {
   ActionType,
   Action,
   Player,
-  Theory
+  Theory,
+  Score
 }

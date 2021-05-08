@@ -586,9 +586,10 @@ class SectorsRule extends SelfRule {
 }
 
 class BoardType {
-  constructor(boardSize, numObjects, theoryPhaseInterval, conferencePhases, theoriesPerTurn, numTargets) {
+  constructor(boardSize, numObjects, scoreValues, theoryPhaseInterval, conferencePhases, theoriesPerTurn, numTargets) {
     this.boardSize = boardSize;
     this.numObjects = numObjects;
+    this.scoreValues = scoreValues;
     this.theoryPhaseInterval = theoryPhaseInterval;
     const numTheoryPhases = Math.floor(boardSize/theoryPhaseInterval);
     this.theoryPhases = Array.from(numTheoryPhases).map((el, i) => ((i+1) * theoryPhaseInterval) - 1);
@@ -599,9 +600,9 @@ class BoardType {
 }
 
 const SECTOR_TYPES = {
-  12: new BoardType(12, {X: 1, E: 2, G: 2, D: 1, A: 4, C: 2}, 3, [8], 1, 2),
-  18: new BoardType(18, {X: 1, E: 5, G: 2, D: 4, A: 4, C: 2}, 3, [6, 15], 2, 2),
-  24: new BoardType(24, {X: 1, E: 6, G: 3, D: 4, A: 6, C: 3, B: 1}, 3, [6, 15, 21], 2, 3)
+  12: new BoardType(12, {X: 1, E: 2, G: 2, D: 1, A: 4, C: 2}, {A: 2, C: 3, G: 4, D: 4}, 3, [8], 1, 2),
+  18: new BoardType(18, {X: 1, E: 5, G: 2, D: 4, A: 4, C: 2}, {A: 2, C: 3, G: 4, D: 2}, 3, [6, 15], 2, 2),
+  24: new BoardType(24, {X: 1, E: 6, G: 3, D: 4, A: 6, C: 3, B: 1}, {A: 2, D: 2, C: 3, G: 4, B: 5}, 3, [6, 15, 21], 2, 3)
 };
 
 module.exports = {
