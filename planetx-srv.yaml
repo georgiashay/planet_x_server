@@ -1,11 +1,12 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
    namespace: planetx
    name: planetx-srv
    labels:
       app: planetx-srv
 spec:
+  serviceName: planetx-srv
   replicas: 1
   selector:
      matchLabels:
