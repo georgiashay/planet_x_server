@@ -202,7 +202,31 @@ const operations = {
     await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate) VALUES (?, ?, ?, ?, 0, ?);", [sessionID, playerID, spaceObject, sector, accurate]);
   },
   advanceTheories: async function(sessionID) {
-    await queryPromise("UPDATE theories SET progress = progress + 1 WHERE session_id = ?;", [sessionID]);
+    const connection = await getPoolConnection();
+    const { results } = await queryConnectionPromise(connection,
+    `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
+      sessions INNER JOIN players ON sessions.id = players.session_id
+      INNER JOIN (SELECT player_id, sum((1 - accurate) * (progress = 2)) as move_sectors
+      FROM theories group by player_id) theories
+      ON players.id = theories.player_id
+      WHERE players.session_id = ?`,
+      [sessionID]);
+    results.sort((row1, row2) => {
+      if (row1.sector === row2.sector) {
+        return row1.arrival - row2.arrival;
+      } else {
+        const row1_ahead = (row1.sector - row1.current_sector + row1.game_size) % row1.game_size;
+        const row2_ahead = (row2.sector - row2.current_sector + row2.game_size) % row2.game_size;
+        return row2_ahead - row1_ahead;
+      }
+    });
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].move_sectors > 0) {
+        await queryConnectionPromise(connection, "CALL MovePlayer(?, ?)", [results[i].id, results[i].move_sectors]);
+      }
+    }
+    await queryConnectionPromise(connection, "UPDATE theories SET progress = progress + 1 WHERE session_id = ?;", [sessionID]);
+    connection.release();
   },
   advancePlayer: async function(playerID, sectors) {
     await queryPromise("CALL MovePlayer(?, ?)", [playerID, sectors]);

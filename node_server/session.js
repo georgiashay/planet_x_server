@@ -533,7 +533,7 @@ class SessionManager {
       if (currentAction.actionType === ActionType.LAST_ACTION) {
         await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
       } else {
-        await this.advanceTheories(session.sessionID);
+        await this.advanceTheories(session);
         await this.nextAction(session);
       }
     }
@@ -563,8 +563,8 @@ class SessionManager {
     return true;
   }
 
-  async advanceTheories(sessionID) {
-    await operations.advanceTheories(sessionID);
+  async advanceTheories(session) {
+    await operations.advanceTheories(session.sessionID);
   }
 
   async makeMove(sessionID, playerID, turn, sectors) {
