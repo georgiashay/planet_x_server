@@ -233,7 +233,7 @@ class Session {
   async getScores() {
     const players = await this.getPlayers();
     const correctTheories = (await this.getTheories()).filter((theory) => theory.revealed() && theory.accurate).sort((a, b) => b.progress - a.progress);
-    const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful);
+    const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful).sort((a, b) => a.time - b.time);
 
     const scores = {};
     for (let i = 0; i < players.length; i++) {
