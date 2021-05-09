@@ -277,7 +277,7 @@ class Session {
 
     for (let i = -1; i < players.length - 1; i++) {
       let diff;
-      if (i > 0) {
+      if (i >= 0) {
         diff = players[i+1].sector - players[i].sector;
       } else {
         diff = players[0].sector - players[players.length - 1].sector;

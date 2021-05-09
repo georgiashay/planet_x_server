@@ -64,26 +64,30 @@ app.post("/joinSession/:sessionCode/", function(req, res, next) {
   });
 });
 
-app.get("/reconnectSessionID/:sessionID", function(req, res, next) {
-  const sessionID = parseInt(req.params.sessionID);
-  Session.findByID(sessionID).then(async (session) => {
-    const gameJson = await session.gameJson();
-    const stateJson = await session.stateJson();
-    res.json({
-      game: gameJson,
-      state: stateJson
-    })
-  });
-});
+app.get("/reconnectSession/:sessionCode", function(req, res, next) {
+  const sessionCode = req.params.sessionCode;
+  const playerNum = parseInt(req.query.playerNum);
 
-app.get("/reconnectSessionCode/:sessionCode", function(req, res, next) {
-  Session.findByCode(req.params.sessionCode).then(async (session) => {
+  Session.findByCode(sessionCode).then(async (session) => {
     const gameJson = await session.gameJson();
     const stateJson = await session.stateJson();
-    res.json({
-      game: gameJson,
-      state: stateJson
-    })
+    const players = await session.getPlayers();
+    const myPlayers = players.filter((player) => player.num === playerNum);
+    if (myPlayers.length == 0) {
+      res.json({
+        found: false
+      });
+    } else {
+      const player = myPlayers[0];
+      res.json({
+        found: true,
+        game: gameJson,
+        state: stateJson,
+        playerID: player.playerID,
+        playerNum: player.num,
+        playerName: player.name
+      });
+    }
   });
 });
 
