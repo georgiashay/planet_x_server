@@ -230,9 +230,9 @@ class Session {
     return behind;
   }
 
-  async getScores() {
+  async getScores(final) {
     const players = await this.getPlayers();
-    const correctTheories = (await this.getTheories()).filter((theory) => theory.revealed() && theory.accurate).sort((a, b) => b.progress - a.progress);
+    const correctTheories = (await this.getTheories()).filter((theory) => (theory.revealed() || final) && theory.accurate).sort((a, b) => b.progress - a.progress);
     const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful).sort((a, b) => a.time - b.time);
 
     const scores = {};
@@ -311,12 +311,13 @@ class Session {
   }
 
   async stateJson() {
+    const final = this.currentAction.actionType === ActionType.END_GAME;
     const [players, theories, actions, history, scores] = await Promise.all([
       this.getPlayers(),
       this.getTheories(),
       this.getActions(),
       this.getHistory(),
-      this.getScores()
+      this.getScores(final)
     ]);
     return {
       players: players.sort((a, b) => a.num - b.num).map((p) => p.json()),
