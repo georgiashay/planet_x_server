@@ -247,6 +247,17 @@ class RuleQualifier {
     }
   }
 
+  shortStringForObject(obj, numObject) {
+    switch(this) {
+      case RuleQualifier.NONE:
+        return numObject === 1 ? (obj.initial + " not") : ("No " + obj.initial);
+      case RuleQualifier.AT_LEAST_ONE:
+        return "≥ 1 " + obj.initial;
+      case RuleQualifier.EVERY:
+        return numObject === 1 ? obj.initial : ("Every " + obj.initial);
+    }
+  }
+
   forObject(obj, numObject) {
     if (this == RuleQualifier.NONE) {
       if (numObject == 1) {
@@ -386,8 +397,11 @@ class AdjacentRule extends RelationRule {
             + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
-  shortText() {
-    return this.qualifier.shortString() + " " + this.spaceObject1.initial + " adj. to " + this.spaceObject2.initial;
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " adj. to " + this.spaceObject2.initial;
   }
 
   static parse(s) {
@@ -405,7 +419,7 @@ class AdjacentRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(board)
     }
   }
 }
@@ -426,8 +440,11 @@ class OppositeRule extends RelationRule {
             + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
-  shortText() {
-    return this.qualifier.shortString() + " " + this.spaceObject1.initial + " opp. " + this.spaceObject2.initial;
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " opp. " + this.spaceObject2.initial;
   }
 
   static parse(s) {
@@ -445,7 +462,7 @@ class OppositeRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(board)
     }
   }
 }
@@ -467,9 +484,11 @@ class WithinRule extends RelationRule {
             + this.numSectors + " sectors of " + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
-  shortText() {
-    return this.qualifier.shortString() + " " + this.spaceObject1.initial + " within " +
-            this.numSectors + " of " + this.spaceObject2.initial;
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " within " + this.numSectors + " of " + this.spaceObject2.initial;
   }
 
   static parse(s) {
@@ -489,7 +508,7 @@ class WithinRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(board)
     }
   }
 }
@@ -507,8 +526,11 @@ class AdjacentSelfRule extends SelfRule {
             + this.spaceObject.name + ".";
   }
 
-  shortText() {
-    return this.qualifier.shortString() + " " + this.spaceObject.initial + " adj. to " + this.spaceObject.initial;
+  shortText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject, numObject)
+            + " adj. to " + this.spaceObject.initial;
   }
 
   static parse(s) {
@@ -524,7 +546,7 @@ class AdjacentSelfRule extends SelfRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(board)
     }
   }
 }
@@ -542,8 +564,11 @@ class OppositeSelfRule extends SelfRule {
             + this.spaceObject.name + ".";
   }
 
-  shortText() {
-    return this.qualifier.shortString() + " " + this.spaceObject.initial + " opp. " + this.spaceObject.initial;
+  shortText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject, numObject)
+            + " opp. " + this.spaceObject.initial;
   }
 
   static parse(s) {
@@ -559,7 +584,7 @@ class OppositeSelfRule extends SelfRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(board)
     }
   }
 }
