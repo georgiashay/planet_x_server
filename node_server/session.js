@@ -377,6 +377,8 @@ class SessionManager {
 
     await operations.resolveAction(currentAction.actionID, null);
     await this.randomizeOrder(sessionID);
+
+    return true;
   }
 
   async randomizeOrder(sessionID) {
