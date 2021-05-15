@@ -173,7 +173,7 @@ const operations = {
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, new Date(row.time), row.id));
+    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, new Date(row.time), row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
@@ -206,11 +206,21 @@ const operations = {
     const { results } = await queryConnectionPromise(connection,
     `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
       sessions INNER JOIN players ON sessions.id = players.session_id
-      INNER JOIN (SELECT player_id, sum((1 - accurate) * (progress = 2)) as move_sectors
+
+      INNER JOIN (SELECT player_id, sum((1-accurate) * (1 - (
+      sector NOT IN
+      (
+      SELECT * FROM
+      (
+      SELECT sector FROM theories WHERE progress = 2 AND accurate IS TRUE AND frozen is FALSE AND session_id = ?
+      ) AS revealed_sectors
+      )
+      ) * (progress != 2))) as move_sectors
       FROM theories group by player_id) theories
       ON players.id = theories.player_id
-      WHERE players.session_id = ?`,
-      [sessionID]);
+      WHERE players.session_id = ?;`,
+      [sessionID, sessionID]);
+
     results.sort((row1, row2) => {
       if (row1.sector === row2.sector) {
         return row1.arrival - row2.arrival;
@@ -225,7 +235,15 @@ const operations = {
         await queryConnectionPromise(connection, "CALL MovePlayer(?, ?)", [results[i].id, results[i].move_sectors]);
       }
     }
-    await queryConnectionPromise(connection, "UPDATE theories SET progress = progress + 1 WHERE session_id = ?;", [sessionID]);
+    await queryConnectionPromise(connection, "UPDATE theories SET progress = progress + 1 WHERE session_id = ? AND frozen IS FALSE;", [sessionID]);
+    await queryConnectionPromise(connection,
+      `UPDATE theories SET frozen = 1 WHERE session_id = ? AND (sector IN (
+        SELECT * FROM (
+        SELECT sector FROM theories WHERE progress = 3 AND accurate IS TRUE AND frozen is FALSE AND session_id = ?
+        ) AS revealed_sectors
+
+      ) OR progress = 3);`, [sessionID, sessionID]);
+
     connection.release();
   },
   advancePlayer: async function(playerID, sectors) {

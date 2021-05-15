@@ -258,10 +258,11 @@ class Player {
 }
 
 class Theory {
-  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, time=null, id=null) {
+  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, frozen=false, time=null, id=null) {
     this.spaceObject = spaceObject;
     this.sector = sector;
     this.progress = progress;
+    this.frozen = frozen;
     this.playerID = playerID;
     this.accurate = accuracy;
     this.id = id;
@@ -278,7 +279,7 @@ class Theory {
   }
 
   revealed() {
-    return this.progress >= 3;
+    return this.frozen;
   }
 
   setAccuracy(board) {
@@ -291,7 +292,6 @@ class Theory {
       spaceObject: this.spaceObject.json(),
       sector: this.sector,
       progress: this.progress,
-      boardProgress: Math.min(this.progress, 3),
       revealed: this.revealed(),
       accurate: this.accurate,
       playerID: this.playerID,
