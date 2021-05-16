@@ -353,6 +353,14 @@ class Rule {
     let objectTitles = objects.map((obj) => obj.category());
     return objectTitles.join(" & ");
   }
+
+  shortCategory() {
+    let objects = this.spaceObjects();
+    if (objects[objects.length - 1] === SpaceObject.Empty) {
+      objects = objects.slice(0, objects.length - 1);
+    }
+    return objects.map((obj) => obj.initial).join("&");
+  }
 }
 
 class RelationRule extends Rule {
@@ -418,6 +426,7 @@ class AdjacentRule extends RelationRule {
       spaceObject2: this.spaceObject2.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText(board)
     }
@@ -461,6 +470,7 @@ class OppositeRule extends RelationRule {
       spaceObject2: this.spaceObject2.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText(board)
     }
@@ -507,6 +517,7 @@ class WithinRule extends RelationRule {
       numSectors: this.numSectors,
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText(board)
     }
@@ -545,6 +556,7 @@ class AdjacentSelfRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText(board)
     }
@@ -583,6 +595,7 @@ class OppositeSelfRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText(board)
     }
@@ -620,6 +633,7 @@ class BandRule extends SelfRule {
       numSectors: this.bandSize,
       precision: this.precision.json(),
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText()
     }
@@ -655,6 +669,7 @@ class SectorsRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       allowedSectors: this.positions,
       categoryName: this.categoryName(),
+			shortCategory: this.shortCategory(),
       text: this.text(board),
       shortText: this.shortText()
     }
