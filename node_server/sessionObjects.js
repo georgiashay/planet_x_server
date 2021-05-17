@@ -10,16 +10,18 @@ const ActionType = {
 };
 
 class Action {
-  constructor(actionType, playerID, actionID=null) {
+  constructor(actionType, playerID, turn, actionID=null) {
     this.actionType = actionType;
     this.playerID = playerID;
+    this.turn = turn;
     this.actionID = actionID;
   }
 
   json() {
     return {
       actionType: this.actionType,
-      playerID: this.playerID
+      playerID: this.playerID,
+      turn: this.turn
     }
   }
 }
@@ -34,32 +36,37 @@ const TurnType = {
 };
 
 class Turn {
-  constructor(playerID=undefined, turnTime=undefined) {
+  constructor(turnNumber=undefined, playerID=undefined, turnTime=undefined) {
+    this.turnNumber = turnNumber;
+    this.playerID = playerID;
     if (turnTime === undefined) {
       turnTime = new Date();
     }
     this.time = turnTime;
-    this.playerID = playerID;
   }
 
-  static parse(s, playerID, turnTime) {
+  setTurnNumber(turnNumber) {
+    this.turnNumber = turnNumber;
+  }
+
+  static parse(s, turnNumber, playerID, turnTime) {
     switch(s[0]) {
-      case "S": return SurveyTurn.parse(s, playerID, turnTime);
-      case "T": return TargetTurn.parse(s, playerID, turnTime);
-      case "R": return ResearchTurn.parse(s, playerID, turnTime);
-      case "C": return ConferenceTurn.parse(s, playerID, turnTime);
-      case "L": return LocateTurn.parse(s, playerID, turnTime);
-      case "G": return TheoryTurn.parse(s, playerID, turnTime);
+      case "S": return SurveyTurn.parse(s, turnNumber, playerID, turnTime);
+      case "T": return TargetTurn.parse(s, turnNumber, playerID, turnTime);
+      case "R": return ResearchTurn.parse(s, turnNumber, playerID, turnTime);
+      case "C": return ConferenceTurn.parse(s, turnNumber, playerID, turnTime);
+      case "L": return LocateTurn.parse(s, turnNumber, playerID, turnTime);
+      case "G": return TheoryTurn.parse(s, turnNumber, playerID, turnTime);
     }
   }
 
   static fromJson(info) {
     switch(info.turnType) {
-      case TurnType.SURVEY: return new SurveyTurn(SpaceObject.parse(info.spaceObject), info.sectors, info.playerID, info.time);
-      case TurnType.TARGET: return new TargetTurn(info.sector, info.playerID, info.time);
-      case TurnType.RESEARCH: return new ResearchTurn(info.index, info.playerID, info.time);
-      case TurnType.CONFERENCE: return new ConferenceTurn(info.index, info.playerID, info.time);
-      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SpaceObject.parse(info.leftObject), SpaceObject.parse(info.rightObject), info.successful, info.playerID, info.time);
+      case TurnType.SURVEY: return new SurveyTurn(SpaceObject.parse(info.spaceObject), info.sectors, info.turn, info.playerID, info.time);
+      case TurnType.TARGET: return new TargetTurn(info.sector, info.turn, info.playerID, info.time);
+      case TurnType.RESEARCH: return new ResearchTurn(info.index, info.turn, info.playerID, info.time);
+      case TurnType.CONFERENCE: return new ConferenceTurn(info.index, info.turn, info.playerID, info.time);
+      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SpaceObject.parse(info.leftObject), SpaceObject.parse(info.rightObject), info.successful, info.turn, info.playerID, info.time);
     }
   }
 }
@@ -67,8 +74,8 @@ class Turn {
 class SurveyTurn extends Turn {
   turnType = TurnType.SURVEY;
 
-  constructor(spaceObject, sectors, playerID=undefined, turnTime=undefined) {
-    super(playerID, turnTime);
+  constructor(spaceObject, sectors, turnNumber=undefined, playerID=undefined, turnTime=undefined) {
+    super(turnNumber, playerID, turnTime);
     this.spaceObject = spaceObject;
     this.sectors = sectors;
   }
@@ -87,23 +94,24 @@ class SurveyTurn extends Turn {
       spaceObject: this.spaceObject.json(),
       sectors: this.sectors,
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const spaceObject = SpaceObject.parse(s[1]);
     const sectors = s.slice(2).split(",").map((sector) => parseInt(sector));
-    return new SurveyTurn(spaceObject, sectors, playerID, turnTime);
+    return new SurveyTurn(spaceObject, sectors, turnNumber, playerID, turnTime);
   }
 }
 
 class TargetTurn extends Turn {
   turnType = TurnType.TARGET;
 
-  constructor(sector, playerID=undefined, turnTime=undefined) {
-    super(playerID, turnTime);
+  constructor(sector, turnNumber=undefined, playerID=undefined, turnTime=undefined) {
+    super(turnNumber, playerID, turnTime);
     this.sector = sector;
   }
 
@@ -120,22 +128,23 @@ class TargetTurn extends Turn {
       turnType: "TARGET",
       sector: this.sector,
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const sector = parseInt(s.slice(1));
-    return new TargetTurn(sector, playerID, turnTime);
+    return new TargetTurn(sector, turnNumber, playerID, turnTime);
   }
 }
 
 class ResearchTurn extends Turn {
   turnType = TurnType.RESEARCH;
 
-  constructor(researchIndex, playerID, turnTime) {
-    super(playerID, turnTime);
+  constructor(researchIndex, turnNumber, playerID, turnTime) {
+    super(turnNumber, playerID, turnTime);
     this.researchIndex = researchIndex;
   }
 
@@ -152,22 +161,23 @@ class ResearchTurn extends Turn {
       turnType: "RESEARCH",
       index: this.researchIndex,
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const researchIndex = parseInt(s.slice(1));
-    return new ResearchTurn(researchIndex, playerID, turnTime);
+    return new ResearchTurn(researchIndex, turnNumber, playerID, turnTime);
   }
 }
 
 class ConferenceTurn extends Turn {
   turnType = TurnType.CONFERENCE;
 
-  constructor(conferenceIndex, playerID, turnTime) {
-    super(playerID, turnTime);
+  constructor(conferenceIndex, turnNumber, playerID, turnTime) {
+    super(turnNumber, playerID, turnTime);
     this.conferenceIndex = conferenceIndex;
   }
 
@@ -184,22 +194,23 @@ class ConferenceTurn extends Turn {
       turnType: "CONFERENCE",
       index: this.conferenceIndex,
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const conferenceIndex = parseInt(s.slice(1));
-    return new ConferenceTurn(conferenceIndex, playerID, turnTime);
+    return new ConferenceTurn(conferenceIndex, turnNumber, playerID, turnTime);
   }
 }
 
 class LocateTurn extends Turn {
   turnType = TurnType.LOCATE_PLANET_X;
 
-  constructor(sector, leftObject, rightObject, successful, playerID, turnTime) {
-    super(playerID, turnTime);
+  constructor(sector, leftObject, rightObject, successful, turnNumber, playerID, turnTime) {
+    super(turnNumber, playerID, turnTime);
     this.sector = sector;
     this.leftObject = leftObject;
     this.rightObject = rightObject;
@@ -222,25 +233,26 @@ class LocateTurn extends Turn {
       rightObject: this.rightObject.json(),
       successful: this.successful,
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const successful = !!+s[1];
     const leftObject = SpaceObject.parse(s[2]);
     const rightObject = SpaceObject.parse(s[3]);
     const sector = parseInt(s.slice(4));
-    return new LocateTurn(sector, leftObject, rightObject, successful, playerID, turnTime);
+    return new LocateTurn(sector, leftObject, rightObject, successful, turnNumber, playerID, turnTime);
   }
 }
 
 class TheoryTurn extends Turn {
   turnType = TurnType.THEORY;
 
-  constructor(theories, playerID, turnTime) {
-    super(playerID, turnTime);
+  constructor(theories, turnNumber, playerID, turnTime) {
+    super(turnNumber, playerID, turnTime);
     this.theories = theories;
   }
 
@@ -257,12 +269,13 @@ class TheoryTurn extends Turn {
       turnType: "THEORY",
       theories: this.theories.map((theory) => theory.json()),
       text: this.toString(),
-      time: this.time,
+      turn: this.turnNumber,
+			time: this.time,
       playerID: this.playerID
     }
   }
 
-  static parse(s, playerID, turnTime) {
+  static parse(s, turnNumber, playerID, turnTime) {
     const theoryStrings = s.slice(1).split(",");
     let theories = [];
     if (s.length > 1) {
@@ -272,7 +285,7 @@ class TheoryTurn extends Turn {
         return new Theory(object, sector, playerID);
       });
     }
-    return new TheoryTurn(theories, playerID, turnTime);
+    return new TheoryTurn(theories, turnNumber, playerID, turnTime);
   }
 }
 
@@ -302,7 +315,7 @@ class Player {
 }
 
 class Theory {
-  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, frozen=false, time=null, id=null) {
+  constructor(spaceObject, sector, accuracy=undefined, playerID=null, progress=0, frozen=false, turn=null, id=null) {
     this.spaceObject = spaceObject;
     this.sector = sector;
     this.progress = progress;
@@ -310,7 +323,7 @@ class Theory {
     this.playerID = playerID;
     this.accurate = accuracy;
     this.id = id;
-    this.time = time;
+    this.turn = turn;
   }
 
   toString() {
@@ -331,6 +344,10 @@ class Theory {
     this.accurate = accuracy;
   }
 
+  setTurn(turn) {
+    this.turn = turn;
+  }
+
   json(board) {
     return {
       spaceObject: this.spaceObject.json(),
@@ -339,7 +356,7 @@ class Theory {
       revealed: this.revealed(),
       accurate: this.accurate,
       playerID: this.playerID,
-      time: this.time,
+      turn: this.turn,
       id: this.id
     }
   }

@@ -152,7 +152,8 @@ const operations = {
       firstRotation: !!results[0].first_rotation,
       currentSector: results[0].current_sector,
       actionType: results[0].current_action,
-      actionPlayer: results[0].action_player
+      actionTurn: results[0].current_turn,
+      actionPlayer: results[0].action_player,
     };
   },
   getSessionByID: async function(sessionID) {
@@ -168,12 +169,13 @@ const operations = {
       firstRotation: !!results[0].first_rotation,
       currentSector: results[0].current_sector,
       actionType: results[0].current_action,
+      actionTurn: results[0].current_turn,
       actionPlayer: results[0].action_player
     };
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, new Date(row.time), row.id));
+    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, row.turn, row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
@@ -185,7 +187,7 @@ const operations = {
     const { results } = await queryConnectionPromise(connection, "SELECT @SessionID, @PlayerNum, @PlayerID");
 
     if(creator) {
-      await queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, resolved) VALUES('START_GAME', ?, FALSE);", [results[0]["@PlayerID"]]);
+      await queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, turn, resolved) VALUES('START_GAME', ?, 0, FALSE);", [results[0]["@PlayerID"]]);
     }
     connection.release();
 
@@ -198,8 +200,8 @@ const operations = {
   movePlayer: async function(playerID, sector, arrival) {
     await queryPromise("UPDATE players SET sector = ?, arrival = ? WHERE id = ?", [sector, arrival, playerID]);
   },
-  createTheory: async function(sessionID, playerID, spaceObject, sector, accurate) {
-    await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate) VALUES (?, ?, ?, ?, 0, ?);", [sessionID, playerID, spaceObject, sector, accurate]);
+  createTheory: async function(sessionID, playerID, spaceObject, sector, accurate, turn) {
+    await queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate, turn) VALUES (?, ?, ?, ?, 0, ?, ?);", [sessionID, playerID, spaceObject, sector, accurate, turn]);
   },
   advanceTheories: async function(sessionID) {
     const connection = await getPoolConnection();
@@ -251,16 +253,16 @@ const operations = {
   },
   getCurrentActionsForSession: async function(sessionID) {
     const { results } = await queryPromise(
-      `SELECT actions.id, actions.action_type, actions.player_id
+      `SELECT actions.id, actions.action_type, actions.player_id, actions.turn
       FROM actions, players
       WHERE actions.resolved IS FALSE AND actions.player_id = players.id
       AND players.session_id = ?`, [sessionID]);
 
-    return results.map((row) => new Action(ActionType[row.action_type], row.player_id, row.id));
+    return results.map((row) => new Action(ActionType[row.action_type], row.player_id, row.turn, row.id));
   },
   getPreviousTurns: async function(sessionID) {
     const { results } = await queryPromise(
-      `SELECT actions.player_id, actions.resolve_time, actions.resolve_action
+      `SELECT actions.player_id, actions.resolve_time, actions.resolve_action, actions.turn
       FROM actions, players
       WHERE actions.resolved IS TRUE AND actions.action_type != 'START_GAME'
       AND actions.action_type != 'END_GAME'
@@ -268,18 +270,18 @@ const operations = {
       [sessionID]
     );
 
-    return results.map((row) => Turn.parse(row.resolve_action, row.player_id, new Date(row.resolve_time)));
+    return results.map((row) => Turn.parse(row.resolve_action, row.turn, row.player_id, row.resolve_time));
   },
-  createAction: async function(actionType, playerID) {
-    await queryPromise("INSERT INTO actions(action_type, player_id, resolved) VALUES(?, ?, FALSE);", [actionType, playerID]);
+  createAction: async function(actionType, playerID, turn) {
+    await queryPromise("INSERT INTO actions(action_type, player_id, turn, resolved) VALUES(?, ?, ?, FALSE);", [actionType, playerID, turn]);
   },
   getCurrentAction: async function(playerID) {
-    const { results } = await queryPromise("SELECT id, action_type, player_id FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
+    const { results } = await queryPromise("SELECT id, action_type, player_id, turn FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
 
     if (results.length == 0) {
       return null;
     } else {
-      return new Action(ActionType[results[0].action_type], results[0].player_id, results[0].id);
+      return new Action(ActionType[results[0].action_type], results[0].player_id, results[0].turn, results[0].id);
     }
   },
   resolveAction: async function(actionID, turn) {
@@ -300,13 +302,14 @@ const operations = {
     await queryPromise("UPDATE actions SET resolved = TRUE, resolve_time = ?, resolve_action = ? WHERE id = ?;", [turnTime, turnCode, actionID]);
   },
   setCurrentAction: async function(sessionID, action) {
-    await queryPromise("UPDATE sessions SET current_action = ?, action_player = ? WHERE id = ?;", [action.actionType, action.playerID, sessionID]);
+    await queryPromise("UPDATE sessions SET current_action = ?, current_turn = ?, action_player = ? WHERE id = ?;", [action.actionType, action.turn, action.playerID, sessionID]);
   },
   setCurrentStatus: async function(sessionID, action, currentSector, firstRotation) {
     await queryPromise(
       `UPDATE sessions SET first_rotation = ?, current_sector = ?,
-      current_action = ?, action_player = ? WHERE id = ?;`,
-      [firstRotation, currentSector, action.actionType, action.playerID, sessionID]
+      current_action = ?, current_turn = ?, action_player = ?
+      WHERE id = ?;`,
+      [firstRotation, currentSector, action.actionType, action.turn, action.playerID, sessionID]
     );
   }
 };
