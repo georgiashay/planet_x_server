@@ -263,7 +263,7 @@ const operations = {
       `SELECT actions.player_id, actions.resolve_time, actions.resolve_action
       FROM actions, players
       WHERE actions.resolved IS TRUE AND actions.action_type != 'START_GAME'
-      AND actions.action_type != 'END_GAME' AND actions.action_type != 'CONFERENCE_PHASE'
+      AND actions.action_type != 'END_GAME'
       AND actions.player_id = players.id AND players.session_id = ?`,
       [sessionID]
     );

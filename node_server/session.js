@@ -4,7 +4,8 @@ const operations = require("./dbOps");
 const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
-        LocateTurn, TargetTurn, TheoryTurn, Score } = require("./sessionObjects");
+        LocateTurn, TargetTurn, TheoryTurn, Score,
+        ConferenceTurn } = require("./sessionObjects");
 
 class Session {
   constructor(sessionID, code, boardLength, gameID, firstRotation,
@@ -370,6 +371,8 @@ class SessionManager {
   }
 
   async startSession(sessionID, playerID) {
+    console.log("Start Session:");
+    console.log(sessionID, playerID);
     const currentAction = await operations.getCurrentAction(playerID);
     if (currentAction === null || currentAction.actionType !== ActionType.START_GAME) {
       return false;
@@ -473,6 +476,9 @@ class SessionManager {
   }
 
   async submitTheories(sessionID, playerID, theories) {
+    console.log("Submit theories");
+    console.log(sessionID, playerID);
+    console.log(theories);
     const currentAction = await operations.getCurrentAction(playerID);
 
     if (currentAction === null || (currentAction.actionType !== ActionType.THEORY_PHASE &&
@@ -554,9 +560,12 @@ class SessionManager {
     if (currentAction === null || currentAction.actionType !== ActionType.CONFERENCE_PHASE) {
       return false;
     }
-
-    await operations.resolveAction(currentAction.actionID, null);
     const session = await Session.findByID(sessionID);
+    const conferenceIndex = SECTOR_TYPES[session.boardLength].conferencePhases.indexOf(session.currentSector);
+
+    const turn = new ConferenceTurn(conferenceIndex);
+    await operations.resolveAction(currentAction.actionID, turn);
+
     const actions = await session.getActions();
     if (actions.length === 0) {
       await this.nextAction(session);
@@ -571,6 +580,10 @@ class SessionManager {
   }
 
   async makeMove(sessionID, playerID, turn, sectors) {
+    console.log("Make Move:");
+    console.log(sessionID, playerID);
+    console.log(turn);
+    console.log(sectors);
     const currentAction = await operations.getCurrentAction(playerID);
     const actionMatches = currentAction !== null
       && ((currentAction.actionType === ActionType.PLAYER_TURN)

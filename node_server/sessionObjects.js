@@ -28,6 +28,7 @@ const TurnType = {
   SURVEY: "SURVEY",
   TARGET: "TARGET",
   RESEARCH: "RESEARCH",
+  CONFERENCE: "CONFERENCE",
   LOCATE_PLANET_X: "LOCATE_PLANET_X",
   THEORY: "THEORY"
 };
@@ -46,6 +47,7 @@ class Turn {
       case "S": return SurveyTurn.parse(s, playerID, turnTime);
       case "T": return TargetTurn.parse(s, playerID, turnTime);
       case "R": return ResearchTurn.parse(s, playerID, turnTime);
+      case "C": return ConferenceTurn.parse(s, playerID, turnTime);
       case "L": return LocateTurn.parse(s, playerID, turnTime);
       case "G": return TheoryTurn.parse(s, playerID, turnTime);
     }
@@ -56,7 +58,8 @@ class Turn {
       case TurnType.SURVEY: return new SurveyTurn(SpaceObject.parse(info.spaceObject), info.sectors, info.playerID, info.time);
       case TurnType.TARGET: return new TargetTurn(info.sector, info.playerID, info.time);
       case TurnType.RESEARCH: return new ResearchTurn(info.index, info.playerID, info.time);
-      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.successful, info.playerID, info.time);
+      case TurnType.CONFERENCE: return new ConferenceTurn(info.index, info.playerID, info.time);
+      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SpaceObject.parse(info.leftObject), SpaceObject.parse(info.rightObject), info.successful, info.playerID, info.time);
     }
   }
 }
@@ -160,11 +163,46 @@ class ResearchTurn extends Turn {
   }
 }
 
+class ConferenceTurn extends Turn {
+  turnType = TurnType.CONFERENCE;
+
+  constructor(conferenceIndex, playerID, turnTime) {
+    super(playerID, turnTime);
+    this.conferenceIndex = conferenceIndex;
+  }
+
+  toString() {
+    return "Conference X" + (this.conferenceIndex + 1);
+  }
+
+  code() {
+    return "C" + this.conferenceIndex;
+  }
+
+  json() {
+    return {
+      turnType: "CONFERENCE",
+      index: this.conferenceIndex,
+      text: this.toString(),
+      time: this.time,
+      playerID: this.playerID
+    }
+  }
+
+  static parse(s, playerID, turnTime) {
+    const conferenceIndex = parseInt(s.slice(1));
+    return new ConferenceTurn(conferenceIndex, playerID, turnTime);
+  }
+}
+
 class LocateTurn extends Turn {
   turnType = TurnType.LOCATE_PLANET_X;
 
-  constructor(successful, playerID, turnTime) {
+  constructor(sector, leftObject, rightObject, successful, playerID, turnTime) {
     super(playerID, turnTime);
+    this.sector = sector;
+    this.leftObject = leftObject;
+    this.rightObject = rightObject;
     this.successful = successful;
   }
 
@@ -173,12 +211,15 @@ class LocateTurn extends Turn {
   }
 
   code() {
-    return "L" + +this.successful
+    return "L" + +this.successful + this.leftObject.initial + this.rightObject.initial + this.sector;
   }
 
   json() {
     return {
       turnType: "LOCATE_PLANET_X",
+      sector: this.sector,
+      leftObject: this.leftObject.json(),
+      rightObject: this.rightObject.json(),
       successful: this.successful,
       text: this.toString(),
       time: this.time,
@@ -188,7 +229,10 @@ class LocateTurn extends Turn {
 
   static parse(s, playerID, turnTime) {
     const successful = !!+s[1];
-    return new LocateTurn(successful, playerID, turnTime);
+    const leftObject = SpaceObject.parse(s[2]);
+    const rightObject = SpaceObject.parse(s[3]);
+    const sector = parseInt(s.slice(4));
+    return new LocateTurn(sector, leftObject, rightObject, successful, playerID, turnTime);
   }
 }
 
@@ -356,6 +400,7 @@ module.exports = {
   SurveyTurn,
   TargetTurn,
   ResearchTurn,
+  ConferenceTurn,
   LocateTurn,
   TheoryTurn,
   ActionType,
