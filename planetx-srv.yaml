@@ -35,6 +35,80 @@ spec:
              path: creds.json
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pxweb-conf
+  namespace: planetx
+data:
+  default.conf: |
+     server {
+         listen       80;
+         listen  [::]:80;
+         server_name  localhost;
+
+         location / {
+             root   /usr/share/nginx/html;
+             index  index.html index.htm;
+             try_files $uri $uri/ /index.html;
+         }
+
+         location = /50x.html {
+             root   /usr/share/nginx/html;
+         }
+
+     }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: planetx-web
+  namespace: planetx
+spec:
+  selector:
+    matchLabels:
+      app: planetx-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: planetx-web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /usr/share/nginx/html
+            name: webroot
+          - mountPath: /etc/nginx/conf.d
+            name: webconfig
+      volumes:
+        - name: webroot
+          hostPath:
+            path: /data/sdata/otherwebapps/planetx
+            type: Directory
+        - name: webconfig
+          configMap:
+            name: pxweb-conf
+            items:
+              - key: default.conf
+                path: default.conf
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: planetx-web
+  namespace: planetx
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: planetx-web
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: planetx-srv
@@ -42,7 +116,7 @@ metadata:
 spec:
   ports:
     - port: 80
-      targetPort: 8000  
+      targetPort: 8000
   selector:
      app: planetx-srv
 ---
@@ -54,8 +128,10 @@ metadata:
    annotations:
       kubernetes.io/ingress.class: "nginx"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
    tls:
      - hosts:
@@ -64,10 +140,35 @@ spec:
    - host: planetx.shaytech.net
      http:
        paths:
-          - path: /
+          - path: /api(/|$)(.*)
             pathType: Prefix
             backend:
                service:
                   name: planetx-srv
                   port:
-                    number: 80     
+                    number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+   namespace: planetx
+   name: planetx-web-ingress
+   annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+   tls:
+     - hosts:
+       - planetx.shaytech.net
+   rules:
+   - host: planetx.shaytech.net
+     http:
+       paths:
+         - path: /
+#         - path: /
+           pathType: Prefix
+           backend:
+             service:
+                name: planetx-web
+                port:
+                   number: 80
