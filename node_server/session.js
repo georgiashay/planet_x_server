@@ -4,7 +4,8 @@ const operations = require("./dbOps");
 const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
-        LocateTurn, TargetTurn, TheoryTurn, Score } = require("./sessionObjects");
+        LocateTurn, TargetTurn, TheoryTurn, Score,
+        ConferenceTurn } = require("./sessionObjects");
 
 class Session {
   constructor(sessionID, code, boardLength, gameID, firstRotation,
@@ -92,7 +93,7 @@ class Session {
 
     const { gameID, game } = await operations.pickGame(numSectors);
     const sessionID = await operations.createSession(chosenCode, numSectors, gameID);
-    const session = new Session(sessionID, chosenCode, numSectors, gameID, true, 0, new Action(ActionType.START_GAME, null));
+    const session = new Session(sessionID, chosenCode, numSectors, gameID, true, 0, new Action(ActionType.START_GAME, null, 0));
     session.game = game;
     return session;
   }
@@ -105,7 +106,7 @@ class Session {
     return new Session(
       info.sessionID, info.sessionCode, info.gameSize, info.gameID,
       info.firstRotation, info.currentSector,
-      new Action(ActionType[info.actionType], info.actionPlayer)
+      new Action(ActionType[info.actionType], info.actionPlayer, info.actionTurn)
     );
   }
 
@@ -117,7 +118,7 @@ class Session {
     return new Session(
       info.sessionID, info.sessionCode, info.gameSize, info.gameID,
       info.firstRotation, info.currentSector,
-      new Action(ActionType[info.actionType], info.actionPlayer)
+      new Action(ActionType[info.actionType], info.actionPlayer, info.actionTurn)
     );
   }
 
@@ -144,7 +145,7 @@ class Session {
   async refreshStatus() {
     const info = await operations.getSessionByID(this.sessionID);
     this.firstRotation = info.firstRotation;
-    this.currentAction = new Action(ActionType[info.actionType], info.actionPlayer);
+    this.currentAction = new Action(ActionType[info.actionType], info.actionPlayer, info.actionTurn);
     this.currentSector = info.currentSector;
   }
 
@@ -230,10 +231,10 @@ class Session {
     return behind;
   }
 
-  async getScores() {
+  async getScores(final) {
     const players = await this.getPlayers();
-    const correctTheories = (await this.getTheories()).filter((theory) => theory.revealed() && theory.accurate).sort((a, b) => b.progress - a.progress);
-    const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful).sort((a, b) => a.time - b.time);
+    const correctTheories = (await this.getTheories()).filter((theory) => (theory.revealed() || final) && theory.accurate).sort((a, b) => b.progress - a.progress);
+    const planetXTurns = (await this.getHistory()).filter((turn) => turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful).sort((a, b) => a.turnNumber - b.turnNumber);
 
     const scores = {};
     for (let i = 0; i < players.length; i++) {
@@ -311,12 +312,13 @@ class Session {
   }
 
   async stateJson() {
+    const final = this.currentAction.actionType === ActionType.END_GAME;
     const [players, theories, actions, history, scores] = await Promise.all([
       this.getPlayers(),
       this.getTheories(),
       this.getActions(),
       this.getHistory(),
-      this.getScores()
+      this.getScores(final)
     ]);
     return {
       players: players.sort((a, b) => a.num - b.num).map((p) => p.json()),
@@ -369,6 +371,8 @@ class SessionManager {
   }
 
   async startSession(sessionID, playerID) {
+    console.log("Start Session:");
+    console.log(sessionID, playerID);
     const currentAction = await operations.getCurrentAction(playerID);
     if (currentAction === null || currentAction.actionType !== ActionType.START_GAME) {
       return false;
@@ -376,6 +380,8 @@ class SessionManager {
 
     await operations.resolveAction(currentAction.actionID, null);
     await this.randomizeOrder(sessionID);
+
+    return true;
   }
 
   async randomizeOrder(sessionID) {
@@ -396,8 +402,8 @@ class SessionManager {
     }
 
     if (players.length > 0) {
-      await operations.createAction(ActionType.PLAYER_TURN, players[0].playerID);
-      await operations.setCurrentAction(sessionID, new Action(ActionType.PLAYER_TURN, players[0].playerID));
+      await operations.createAction(ActionType.PLAYER_TURN, players[0].playerID, 1);
+      await operations.setCurrentAction(sessionID, new Action(ActionType.PLAYER_TURN, players[0].playerID, 1));
     }
 
     const session = await Session.findByID(sessionID);
@@ -407,6 +413,7 @@ class SessionManager {
   async nextAction(session) {
     const sectorType = SECTOR_TYPES[session.boardLength];
     const currentSector = session.currentSector;
+    const nextTurn = session.currentAction.turn + 1;
     let { nextSector, nextPlayer } = await session.getNextPlayerTurn();
 
     if (nextSector < currentSector) {
@@ -414,7 +421,7 @@ class SessionManager {
     }
 
     let sector = nextSector;
-    let action = new Action(ActionType.PLAYER_TURN, nextPlayer.playerID);
+    let action = new Action(ActionType.PLAYER_TURN, nextPlayer.playerID, nextTurn);
 
     const theoryOffset = (((-currentSector - 1) % sectorType.theoryPhaseInterval) + sectorType.theoryPhaseInterval) % sectorType.theoryPhaseInterval;
     let nextTheory = currentSector + theoryOffset;
@@ -426,7 +433,7 @@ class SessionManager {
 
     if (nextTheory < sector) {
       sector = nextTheory;
-      action = new Action(ActionType.THEORY_PHASE, null);
+      action = new Action(ActionType.THEORY_PHASE, null, nextTurn);
     }
 
     if (session.firstRotation) {
@@ -442,7 +449,7 @@ class SessionManager {
         const nextConference = sectorType.conferencePhases[conferenceIndex];
         if (nextConference < sector) {
           sector = nextConference;
-          action = new Action(ActionType.CONFERENCE_PHASE, null);
+          action = new Action(ActionType.CONFERENCE_PHASE, null, nextTurn);
         }
       }
     }
@@ -453,23 +460,17 @@ class SessionManager {
     await operations.setCurrentStatus(session.sessionID, action, sector, stillFirstRotation);
 
     if (action.actionType === ActionType.PLAYER_TURN) {
-      await operations.createAction(action.actionType, action.playerID);
+      await operations.createAction(action.actionType, action.playerID, action.turn);
     } else {
       const players = await session.getPlayers();
-      await Promise.all(players.map((p) => operations.createAction(action.actionType, p.playerID)));
+      await Promise.all(players.map((p) => operations.createAction(action.actionType, p.playerID, action.turn)));
     }
   }
 
-  async lastAction(session) {
-    await operations.setCurrentStatus(session.sessionID, ActionType.LAST_ACTION, null, session.firstRotation);
-
-    const players = await session.getPlayers();
-    await Promise.all(players.map((p) => operations.createAction(ActionType.LAST_ACTION, p.playerID)));
-
-    // TODO: Notify subscribers
-  }
-
   async submitTheories(sessionID, playerID, theories) {
+    console.log("Submit theories");
+    console.log(sessionID, playerID);
+    console.log(theories);
     const currentAction = await operations.getCurrentAction(playerID);
 
     if (currentAction === null || (currentAction.actionType !== ActionType.THEORY_PHASE &&
@@ -479,6 +480,8 @@ class SessionManager {
         successfulTheories: []
       };
     }
+
+    theories.forEach((theory) => theory.setTurn(currentAction.turn));
 
     const session = await Session.findByID(sessionID);
 
@@ -520,7 +523,7 @@ class SessionManager {
       const uniqueObject = !myTheories.some((t) => t.spaceObject.initial === theory.spaceObject.initial && t.sector === theory.sector);
 
       if (hasTokens && notRevealed && uniqueSector && uniqueObject) {
-        await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector, theory.accurate);
+        await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector, theory.accurate, theory.turn);
         successfulTheories.push(theory);
         tokensLeft[theory.spaceObject.initial] -= 1;
       }
@@ -531,7 +534,7 @@ class SessionManager {
 
     if (actions.length === 0) {
       if (currentAction.actionType === ActionType.LAST_ACTION) {
-        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
+        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null, currentAction.turn + 1));
       } else {
         await this.advanceTheories(session);
         await this.nextAction(session);
@@ -551,9 +554,13 @@ class SessionManager {
     if (currentAction === null || currentAction.actionType !== ActionType.CONFERENCE_PHASE) {
       return false;
     }
-
-    await operations.resolveAction(currentAction.actionID, null);
     const session = await Session.findByID(sessionID);
+    const conferenceIndex = SECTOR_TYPES[session.boardLength].conferencePhases.indexOf(session.currentSector);
+
+    const turn = new ConferenceTurn(conferenceIndex);
+    turn.setTurnNumber(currentAction.turn);
+    await operations.resolveAction(currentAction.actionID, turn);
+
     const actions = await session.getActions();
     if (actions.length === 0) {
       await this.nextAction(session);
@@ -568,6 +575,10 @@ class SessionManager {
   }
 
   async makeMove(sessionID, playerID, turn, sectors) {
+    console.log("Make Move:");
+    console.log(sessionID, playerID);
+    console.log(turn);
+    console.log(sectors);
     const currentAction = await operations.getCurrentAction(playerID);
     const actionMatches = currentAction !== null
       && ((currentAction.actionType === ActionType.PLAYER_TURN)
@@ -577,6 +588,8 @@ class SessionManager {
     if (!actionMatches) {
       return false;
     }
+
+    turn.setTurnNumber(currentAction.turn);
 
     const session = await Session.findByID(sessionID);
 
@@ -604,20 +617,20 @@ class SessionManager {
         for (let i = 0; i < players.length; i++) {
           const player = players[i];
           if (player.playerID !== playerID) {
-            await operations.createAction(ActionType.LAST_ACTION, player.playerID);
+            await operations.createAction(ActionType.LAST_ACTION, player.playerID, currentAction.turn + 1);
           }
         }
 
-        await operations.setCurrentAction(sessionID, new Action(ActionType.LAST_ACTION, null));
+        await operations.setCurrentAction(sessionID, new Action(ActionType.LAST_ACTION, null, currentAction.turn + 1));
       } else {
-        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
+        await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null, currentAction.turn + 1));
       }
 
     } else {
       const actions = await session.getActions();
       if (actions.length == 0) {
         if (currentAction.actionType === ActionType.LAST_ACTION) {
-          await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null));
+          await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null, currentAction.turn + 1));
         } else {
           await this.nextAction(session);
         }
@@ -631,7 +644,7 @@ class SessionManager {
   async createSession(numSectors, name) {
     const session = await Session.create(numSectors);
     const { sessionID, playerNum, playerID } = await operations.newPlayer(session.code, name, true);
-    const action = new Action(ActionType.START_GAME, playerID)
+    const action = new Action(ActionType.START_GAME, playerID, 0);
     await operations.setCurrentAction(sessionID, action);
     session.currentAction = action;
     return { playerID, playerNum, session };

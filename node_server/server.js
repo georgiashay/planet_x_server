@@ -94,8 +94,8 @@ app.get("/reconnectSession/:sessionCode", function(req, res, next) {
 app.post("/startSession/", function(req, res, next) {
   const sessionID = parseInt(req.query.sessionID);
   const playerID = parseInt(req.query.playerID);
-  sessionManager.startSession(sessionID, playerID).then(() => {
-    res.send();
+  sessionManager.startSession(sessionID, playerID).then((result) => {
+    res.json({allowed: result});
   });
 });
 

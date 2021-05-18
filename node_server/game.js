@@ -239,6 +239,25 @@ class RuleQualifier {
     }
   }
 
+  shortString() {
+    switch(this) {
+      case RuleQualifier.NONE: return "No";
+      case RuleQualifier.AT_LEAST_ONE: return "≥ 1";
+      case RuleQualifier.EVERY: return "Every";
+    }
+  }
+
+  shortStringForObject(obj, numObject) {
+    switch(this) {
+      case RuleQualifier.NONE:
+        return numObject === 1 ? (obj.initial + " not") : ("No " + obj.initial);
+      case RuleQualifier.AT_LEAST_ONE:
+        return "≥ 1 " + obj.initial;
+      case RuleQualifier.EVERY:
+        return numObject === 1 ? obj.initial : ("Every " + obj.initial);
+    }
+  }
+
   forObject(obj, numObject) {
     if (this == RuleQualifier.NONE) {
       if (numObject == 1) {
@@ -285,6 +304,13 @@ class Precision {
     }
   }
 
+  shortString() {
+    switch(this) {
+      case Precision.STRICT: return "";
+      case Precision.WITHIN: return "≤";
+    }
+  }
+
   static parse(s) {
     switch(s) {
       case "S": return Precision.STRICT;
@@ -326,6 +352,14 @@ class Rule {
     }
     let objectTitles = objects.map((obj) => obj.category());
     return objectTitles.join(" & ");
+  }
+
+  shortCategory() {
+    let objects = this.spaceObjects();
+    if (objects[objects.length - 1] === SpaceObject.Empty) {
+      objects = objects.slice(0, objects.length - 1);
+    }
+    return objects.map((obj) => obj.initial).join("&");
   }
 }
 
@@ -371,6 +405,13 @@ class AdjacentRule extends RelationRule {
             + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " adj. to " + this.spaceObject2.initial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -385,7 +426,9 @@ class AdjacentRule extends RelationRule {
       spaceObject2: this.spaceObject2.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText(board)
     }
   }
 }
@@ -406,6 +449,13 @@ class OppositeRule extends RelationRule {
             + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " opp. " + this.spaceObject2.initial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -420,7 +470,9 @@ class OppositeRule extends RelationRule {
       spaceObject2: this.spaceObject2.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText(board)
     }
   }
 }
@@ -442,6 +494,13 @@ class WithinRule extends RelationRule {
             + this.numSectors + " sectors of " + this.spaceObject2.anyOf(numObject2) + ".";
   }
 
+  shortText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject1, numObject1)
+            + " within " + this.numSectors + " of " + this.spaceObject2.initial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -458,7 +517,9 @@ class WithinRule extends RelationRule {
       numSectors: this.numSectors,
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText(board)
     }
   }
 }
@@ -476,6 +537,13 @@ class AdjacentSelfRule extends SelfRule {
             + this.spaceObject.name + ".";
   }
 
+  shortText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject, numObject)
+            + " adj. to " + this.spaceObject.initial;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const qualifier = RuleQualifier.parse(s[2]);
@@ -488,7 +556,9 @@ class AdjacentSelfRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText(board)
     }
   }
 }
@@ -506,6 +576,13 @@ class OppositeSelfRule extends SelfRule {
             + this.spaceObject.name + ".";
   }
 
+  shortText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.shortStringForObject(this.spaceObject, numObject)
+            + " opp. " + this.spaceObject.initial;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const qualifier = RuleQualifier.parse(s[2]);
@@ -518,7 +595,9 @@ class OppositeSelfRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText(board)
     }
   }
 }
@@ -536,6 +615,10 @@ class BandRule extends SelfRule {
             + this.precision.toString() + " " + this.bandSize + ".";
   }
 
+  shortText() {
+    return this.spaceObject.initial + " in a band of " + this.precision.shortString() + " " + this.bandSize;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const bandSize = parseInt(s.slice(2, s.length-1));
@@ -550,7 +633,9 @@ class BandRule extends SelfRule {
       numSectors: this.bandSize,
       precision: this.precision.json(),
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText()
     }
   }
 }
@@ -568,6 +653,10 @@ class SectorsRule extends SelfRule {
             + this.positions.map((i) => i+1).join(", ") + ".";
   }
 
+  shortText() {
+    return this.spaceObject.initial + " only in " + this.positions.map((i) => i+1).join(", ");
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const positions = s.slice(2).map((c) => c.charCodeAt(0) - 65);
@@ -580,7 +669,9 @@ class SectorsRule extends SelfRule {
       spaceObject: this.spaceObject.json(),
       allowedSectors: this.positions,
       categoryName: this.categoryName(),
-      text: this.text(board)
+			shortCategory: this.shortCategory(),
+      text: this.text(board),
+      shortText: this.shortText()
     }
   }
 }
