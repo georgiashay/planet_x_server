@@ -248,7 +248,7 @@ const operations = {
   },
   advanceTheories: async function(sessionID) {
     const connection = await getPoolConnection();
-    await queryConnectionPromise("START TRANSACTION;");
+    await queryConnectionPromise(connection, "START TRANSACTION;");
     const { results } = await queryConnectionPromise(connection,
     `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
       sessions INNER JOIN players ON sessions.id = players.session_id
