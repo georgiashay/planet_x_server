@@ -192,13 +192,35 @@ const operations = {
       actionPlayer: results[0].action_player
     };
   },
+  getSessionByPlayerID: async function(playerID) {
+    const { results } = await queryPromise("SELECT sessions.* FROM sessions, players WHERE sessions.id = players.session_id AND players.id = ?;", [playerID]);
+    if (results.length == 0) {
+      return null;
+    }
+    return {
+      sessionID: results[0].id,
+      sessionCode: results[0].session_code,
+      gameSize: results[0].game_size,
+      gameID: results[0].game_id,
+      firstRotation: !!results[0].first_rotation,
+      currentSector: results[0].current_sector,
+      actionType: results[0].current_action,
+      actionTurn: results[0].current_turn,
+      actionPlayer: results[0].action_player
+    };
+  },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
     return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, row.turn, row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Player(row.id, row.num, row.name, row.sector, row.arrival));
+    return results.map((row) => new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival));
+  },
+  getPlayer: async function(playerID) {
+    const { results } = await queryPromise("SELECT * FROM players WHERE id = ?", [playerID]);
+    const row = results[0];
+    return new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival);
   },
   newPlayer: async function(sessionCode, name, creator) {
     const connection = await getPoolConnection();
@@ -334,6 +356,18 @@ const operations = {
       WHERE id = ?;`,
       [firstRotation, currentSector, action.actionType, action.turn, action.playerID, sessionID]
     );
+  },
+  setColor: async function(playerID, color) {
+    try {
+      await queryPromise("UPDATE players SET color = ? WHERE id = ?", [color, playerID]);
+      return true;
+    } catch(e) {
+      if (e.code === "ER_DUP_ENTRY") {
+        return false;
+      } else {
+        throw(e);
+      }
+    }
   }
 };
 

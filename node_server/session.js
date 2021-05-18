@@ -125,6 +125,18 @@ class Session {
     );
   }
 
+  static async findByPlayerID(playerID) {
+    const info = await operations.getSessionByPlayerID(playerID);
+    if (info == null) {
+      return null;
+    }
+    return new Session(
+      info.sessionID, info.sessionCode, info.gameSize, info.gameID,
+      info.firstRotation, info.currentSector,
+      new Action(ActionType[info.actionType], info.actionPlayer, info.actionTurn)
+    );
+  }
+
   async refreshTheories() {
     this.theories = undefined;
     return this.getTheories();
@@ -385,6 +397,15 @@ class SessionManager {
     await this.randomizeOrder(sessionID);
 
     return true;
+  }
+
+  async setColor(playerID, color) {
+    const allowed = await operations.setColor(playerID, color);
+    if (allowed) {
+      const session = await Session.findByPlayerID(playerID);
+      await this.notifySubscribers(session);
+    }
+    return allowed;
   }
 
   async randomizeOrder(sessionID) {

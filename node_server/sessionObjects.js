@@ -290,10 +290,11 @@ class TheoryTurn extends Turn {
 }
 
 class Player {
-  constructor(playerID, num, name, sector, arrival) {
+  constructor(playerID, num, name, color, sector, arrival) {
     this.playerID = playerID;
     this.num = num;
     this.name = name;
+    this.color = color;
     this.sector = sector;
     this.arrival = arrival;
   }
@@ -307,6 +308,7 @@ class Player {
     return {
       num: this.num,
       name: this.name,
+      color: this.color,
       sector: this.sector,
       arrival: this.arrival,
       id: this.playerID
