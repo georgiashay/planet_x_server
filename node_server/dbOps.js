@@ -52,6 +52,7 @@ function getPoolConnection() {
 const operations = {
   pickGame: async function(numSectors) {
     connection = await getPoolConnection();
+    await queryConnectionPromise(connection, "START TRANSACTION;");
     await queryConnectionPromise(connection, "SET @maxID := (SELECT MAX(id) FROM games WHERE board_size = ?);", [numSectors]);
     await queryConnectionPromise(connection, "SET @minID := (SELECT MIN(id) FROM games WHERE board_size = ?);", [numSectors]);
 
@@ -65,7 +66,17 @@ const operations = {
          ORDER BY r1.id ASC
          LIMIT 1;`, [numSectors]);
 
+    await queryConnectionPromise(connection, "COMMIT;");
     connection.release();
+
+    if (results.length === 0) {
+      return {
+        game: undefined,
+        gameCode: undefined,
+        gameID: undefined
+      }
+    }
+
     const gameRow = results[0];
 
     const game = new Game(
@@ -136,8 +147,16 @@ const operations = {
     return results.map((row) => row.session_code);
   },
   createSession: async function(sessionCode, numSectors, gameID) {
-    const { results } = await queryPromise("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
-    return results.insertId;
+    try {
+      const { results } = await queryPromise("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
+      return results.insertId;
+    } catch(e) {
+      if (e.code === "ER_DUP_ENTRY") {
+        return null;
+      } else {
+        throw(e);
+      }
+    }
   },
   getSessionByCode: async function(sessionCode) {
     const { results } = await queryPromise("SELECT * FROM sessions WHERE session_code = ?", [sessionCode]);
@@ -183,16 +202,18 @@ const operations = {
   },
   newPlayer: async function(sessionCode, name, creator) {
     const connection = await getPoolConnection();
-    await queryConnectionPromise(connection, "CALL NewPlayer(?, ?, @SessionID, @PlayerNum, @PlayerID)", [sessionCode, name]);
-    const { results } = await queryConnectionPromise(connection, "SELECT @SessionID, @PlayerNum, @PlayerID");
+    await queryConnectionPromise(connection, "START TRANSACTION;");
+    await queryConnectionPromise(connection, "CALL NewPlayer(?, ?, @PlayerNum, @PlayerID)", [sessionCode, name]);
+    const { results } = await queryConnectionPromise(connection, "SELECT @PlayerNum, @PlayerID");
 
     if(creator) {
       await queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, turn, resolved) VALUES('START_GAME', ?, 0, FALSE);", [results[0]["@PlayerID"]]);
     }
+
+    await queryConnectionPromise(connection, "COMMIT;");
     connection.release();
 
     return {
-      sessionID: results[0]["@SessionID"],
       playerNum: results[0]["@PlayerNum"],
       playerID: results[0]["@PlayerID"]
     }
@@ -205,6 +226,7 @@ const operations = {
   },
   advanceTheories: async function(sessionID) {
     const connection = await getPoolConnection();
+    await queryConnectionPromise("START TRANSACTION;");
     const { results } = await queryConnectionPromise(connection,
     `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
       sessions INNER JOIN players ON sessions.id = players.session_id
@@ -245,6 +267,7 @@ const operations = {
         ) AS revealed_sectors
 
       ) OR progress = 3);`, [sessionID, sessionID]);
+    await queryConnectionPromise("COMMIT;");
 
     connection.release();
   },

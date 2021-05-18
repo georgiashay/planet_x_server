@@ -18,7 +18,11 @@ const sessionManager = new SessionManager(server);
 app.get("/createGame/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
   operations.pickGame(numSectors).then(({game, gameCode}) => {
-    res.json({game: game.json(), gameCode});
+    if (game == undefined) {
+      res.json({success: false});
+    } else {
+      res.json({success: true, game: game.json(), gameCode});
+    }
   });
 });
 

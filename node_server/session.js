@@ -8,6 +8,8 @@ const { Turn, TurnType, Action, ActionType,
         ConferenceTurn } = require("./sessionObjects");
 
 class Session {
+  static NUM_CODES = 24*8*24*8*24;
+
   constructor(sessionID, code, boardLength, gameID, firstRotation,
               currentSector, currentAction) {
     this.sessionID = sessionID;
@@ -83,17 +85,18 @@ class Session {
   }
 
   static async create(numSectors) {
-    const existingCodes = await operations.getSessionCodes();
-    const existingInts = new Set(existingCodes.map((code) => Session.#codeToInt(code)));
-    const availableInts = Array.from(Array(24*8*24*8*24)).map((el, i) => i).filter(i => !existingInts.has(i));
-
-    const randomIndex = Math.floor(Math.random() * availableInts.length);
-    const chosenInt = availableInts[randomIndex];
-    const chosenCode = Session.#intToCode(chosenInt);
-
     const { gameID, game } = await operations.pickGame(numSectors);
-    const sessionID = await operations.createSession(chosenCode, numSectors, gameID);
-    const session = new Session(sessionID, chosenCode, numSectors, gameID, true, 0, new Action(ActionType.START_GAME, null, 0));
+
+    let sessionID = null;
+    let randomCode;
+
+    while (sessionID === null) {
+      const randomInt = Math.floor(Math.random() * (Session.NUM_CODES));
+      randomCode = Session.#intToCode(randomInt);
+      sessionID = await operations.createSession(randomCode, numSectors, gameID);
+    }
+
+    const session = new Session(sessionID, randomCode, numSectors, gameID, true, 0, new Action(ActionType.START_GAME, null, 0));
     session.game = game;
     return session;
   }
@@ -643,9 +646,9 @@ class SessionManager {
 
   async createSession(numSectors, name) {
     const session = await Session.create(numSectors);
-    const { sessionID, playerNum, playerID } = await operations.newPlayer(session.code, name, true);
+    const { playerNum, playerID } = await operations.newPlayer(session.code, name, true);
     const action = new Action(ActionType.START_GAME, playerID, 0);
-    await operations.setCurrentAction(sessionID, action);
+    await operations.setCurrentAction(session.sessionID, action);
     session.currentAction = action;
     return { playerID, playerNum, session };
   }
