@@ -289,7 +289,7 @@ const operations = {
         ) AS revealed_sectors
 
       ) OR progress = 3);`, [sessionID, sessionID]);
-    await queryConnectionPromise("COMMIT;");
+    await queryConnectionPromise(connection, "COMMIT;");
 
     connection.release();
   },
