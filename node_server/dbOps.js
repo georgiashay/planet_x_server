@@ -13,6 +13,18 @@ const pool  = mysql.createPool({
     database : creds.database
 });
 
+function _getPoolConnection() {
+  return new Promise(function(resolve, reject) {
+    pool.getConnection(function(err, connection) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(connection);
+      }
+    })
+  });
+}
+
 function _queryPromise(query, values=[]) {
   return new Promise(function(resolve, reject) {
     pool.query(query, values, function(error, results, fields) {
@@ -24,7 +36,6 @@ function _queryPromise(query, values=[]) {
     })
   });
 }
-
 
 function _queryConnectionPromise(connection, query, values=[]) {
   return new Promise(function(resolve, reject) {
@@ -39,40 +50,38 @@ function _queryConnectionPromise(connection, query, values=[]) {
 }
 
 function queryWrapper(fn) {
-  return function() {
+  return async function() {
     if (arguments.length > fn.length && arguments[arguments.length - 1] !== undefined) {
       const connection = arguments[arguments.length - 1];
-      const saveClose = connection.close;
-      connection.close = () => {};
-      this.queryPromise = (query, values=[]) => _queryConnectionPromise(connection, query, values);
-      this.queryConnectionPromise = (cxn, query, values=[]) => _queryConnectionPromise(connection, query, values);
-      const result = fn.apply(this, arguments);
-      connection.close = saveClose;
-      return result;
+      const context = {
+        queryPromise: (query, values=[]) => _queryConnectionPromise(connection, query, values),
+        queryConnectionPromise: (cxn, query, values=[]) => _queryConnectionPromise(connection, query, values),
+        getPoolConnection: () => connection,
+        startTransaction: (connection) => _queryConnectionPromise(connection, "SAVEPOINT mysavepoint;"),
+        commit: (connection) => {},
+        rollback: (connection) => _queryConnectionPromise(connection, "ROLLBACK TO mysavepoint;"),
+        releaseConnection: () => {};
+      }
+      return fn.apply(context, arguments);
     } else {
-      this.queryPromise = _queryPromise;
-      this.queryConnectionPromise = _queryConnectionPromise;
-      return fn.apply(this, arguments);
+      const context = {
+        queryPromise: _queryPromise,
+        queryConnectionPromise: _queryConnectionPromise,
+        getPoolConnection: _getPoolConnection,
+        startTransaction: (connection) => _queryConnectionPromise(connection, "START TRANSACTION;"),
+        commit: (connection) => _queryConnectionPromise(connection, "COMMIT;"),
+        rollback: (connection) => _queryConnectionPromise(connection, "ROLLBACK;"),
+        releaseConnection: (connection) => connection.release()
+      }
+      return fn.apply(context, arguments);
     }
   }
 }
 
-function getPoolConnection() {
-  return new Promise(function(resolve, reject) {
-    pool.getConnection(function(err, connection) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(connection);
-      }
-    })
-  });
-}
-
 const operations = {
   pickGame: async function(numSectors) {
-    connection = await getPoolConnection();
-    await this.queryConnectionPromise(connection, "START TRANSACTION;");
+    connection = await this.getPoolConnection();
+    await this.startTransaction(connection);
     await this.queryConnectionPromise(connection, "SET @maxID := (SELECT MAX(id) FROM games WHERE board_size = ?);", [numSectors]);
     await this.queryConnectionPromise(connection, "SET @minID := (SELECT MIN(id) FROM games WHERE board_size = ?);", [numSectors]);
 
@@ -86,8 +95,8 @@ const operations = {
          ORDER BY r1.id ASC
          LIMIT 1;`, [numSectors]);
 
-    await this.queryConnectionPromise(connection, "COMMIT;");
-    connection.release();
+    await this.commit(connection);
+    this.releaseConnection(connection);
 
     if (results.length === 0) {
       return {
@@ -247,8 +256,8 @@ const operations = {
     return new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, row.kicked);
   },
   newPlayer: async function(sessionCode, name, creator) {
-    const connection = await getPoolConnection();
-    await this.queryConnectionPromise(connection, "START TRANSACTION;");
+    const connection = await this.getPoolConnection();
+    await this.startTransaction(connection);
     await this.queryConnectionPromise(connection, "CALL NewPlayer(?, ?, @PlayerNum, @PlayerID)", [sessionCode, name]);
     const { results } = await this.queryConnectionPromise(connection, "SELECT @PlayerNum, @PlayerID");
 
@@ -256,8 +265,9 @@ const operations = {
       await this.queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, turn, resolved) VALUES('START_GAME', ?, 0, FALSE);", [results[0]["@PlayerID"]]);
     }
 
-    await this.queryConnectionPromise(connection, "COMMIT;");
-    connection.release();
+    await this.commit(connection);
+
+    this.releaseConnection(connection);
 
     return {
       playerNum: results[0]["@PlayerNum"],
@@ -273,18 +283,18 @@ const operations = {
         allowed: false
       };
     }
-    const connection = await getPoolConnection();
-    await this.queryConnectionPromise(connection, "START TRANSACTION;");
+    const connection = await this.getPoolConnection();
+    await this.startTransaction(connection);
     const bothPlayers = await this.queryConnectionPromise(connection, "SELECT id, kicked FROM players WHERE session_id = ? AND id IN (?, ?) FOR UPDATE", [sessionID, kickPlayerID, votePlayerID]);
     if (bothPlayers.results.length < 2) {
-      await this.queryConnectionPromise(connection, "ROLLBACK;");
-      connection.release();
+      await this.rollback(connection);
+      this.releaseConnection(connection);
       return {
         allowed: false
       };
     } else if (bothPlayers.results.some((p) => p.kicked)) {
-      await this.queryConnectionPromise(connection, "ROLLBACK;");
-      connection.release();
+      await this.rollback(connection);
+      this.releaseConnection(connection);
       return {
         allowed: false
       };
@@ -301,16 +311,16 @@ const operations = {
     } else {
       await callbackNotKicked(connection);
     }
-    await this.queryConnectionPromise(connection, "COMMIT;");
-    connection.release();
+    await this.commit(connection);
+    this.releaseConnection(connection);
     return { allowed: true, kicked };
   },
   createTheory: async function(sessionID, playerID, spaceObject, sector, accurate, turn) {
     await this.queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate, turn) VALUES (?, ?, ?, ?, 0, ?, ?);", [sessionID, playerID, spaceObject, sector, accurate, turn]);
   },
   advanceTheories: async function(sessionID) {
-    const connection = await getPoolConnection();
-    await this.queryConnectionPromise(connection, "START TRANSACTION;");
+    const connection = await this.getPoolConnection();
+    await this.startTransaction(connection);
     const { results } = await this.queryConnectionPromise(connection,
     `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
       sessions INNER JOIN players ON sessions.id = players.session_id
@@ -351,9 +361,10 @@ const operations = {
         ) AS revealed_sectors
 
       ) OR progress = 3);`, [sessionID, sessionID]);
-    await this.queryConnectionPromise(connection, "COMMIT;");
 
-    connection.release();
+    await this.commit(connection);
+
+    this.releaseConnection(connection);
   },
   advancePlayer: async function(playerID, sectors) {
     await this.queryPromise("CALL MovePlayer(?, ?)", [playerID, sectors]);

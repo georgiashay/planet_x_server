@@ -435,7 +435,7 @@ class SessionManager {
     const callbackKicked = async (cxn) => {
       const session = await Session.findByID(sessionID, cxn);
 
-      if (session.currentAction.playerID === kickPlayerID) {
+      if (session.currentAction.playerID === kickPlayerID || session.currentAction.playerID === null) {
         if (session.currentAction.actionType === ActionType.START_GAME) {
           const players = await session.getPlayers(cxn);
           const randomPlayer = players[Math.floor(Math.random() * players.length)];
@@ -445,8 +445,12 @@ class SessionManager {
         } else {
           const actions = await session.getActions(cxn);
           if (actions.length === 0) {
+            if (session.currentAction.actionType === ActionType.THEORY_PHASE) {
+              await this.advanceTheories(session, cxn);
+            }
             await this.setNextAction(session, cxn);
           }
+          await session.refresh(cxn);
         }
       }
 
