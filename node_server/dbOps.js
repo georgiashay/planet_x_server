@@ -6,6 +6,8 @@ const { Game, SpaceObject, StartingInformation,
 
 const { Turn, Action, Theory, Player, ActionType, KickVote } = require("./sessionObjects");
 
+const Mutex = require('async-mutex').Mutex;
+
 const pool  = mysql.createPool({
     host     : creds.hostname,
     user     : creds.username,
@@ -49,30 +51,84 @@ function _queryConnectionPromise(connection, query, values=[]) {
   });
 }
 
+class Connector {
+  constructor(connection=undefined) {
+    this.connection = undefined;
+    this.transactionStack = [];
+    this.lock = new Mutex();
+  }
+
+  async query(query, values=[]) {
+    if (this.connection === undefined) {
+      return _queryPromise(query, values);
+    } else {
+      return _queryConnectionPromise(this.connection, query, values);
+    }
+  }
+
+  async startTransaction() {
+    if (this.connection === undefined) {
+      this.acquireLock();
+      this.connection = await _getPoolConnection();
+      return _queryConnectionPromise(this.connection, "START TRANSACTION;");
+    } else {
+      const index = this.transactionStack.length;
+      this.transactionStack.push(index);
+      return _queryConnectionPromise(this.connection, "SAVEPOINT intermediate_?", [index]);
+    }
+  }
+
+  async commit() {
+    if (this.transactionStack.length === 0) {
+      const result = await _queryConnectionPromise(this.connection, "COMMIT;")
+      this.connection = undefined;
+      this.releaseLock();
+      return result;
+    } else {
+      const index = this.transactionStack.pop();
+      return _queryConnectionPromise(this.connection, "RELEASE SAVEPOINT intermediate_?", [index]);
+    }
+  }
+
+  async rollback(connection) {
+    if (this.transactionStack.length === 0) {
+      const result = await _queryConnectionPromise(this.connection, "ROLLBACK;")
+      this.connection = undefined;
+      this.releaseLock();
+      return result;
+    } else {
+      const index = this.transactionStack.pop();
+      return _queryConnectionPromise(this.connection, "ROLLBACK TO intermediate_?", [index]);
+    }
+  }
+
+  async release() {
+    if (this.connection !== undefined) {
+      this.connection.release();
+    }
+  }
+
+  async acquireLock() {
+    this.release = await this.lock.acquire();
+  }
+
+  async releaseLock() {
+    this.release();
+  }
+}
+
 function queryWrapper(fn) {
   return async function() {
     if (arguments.length > fn.length && arguments[arguments.length - 1] !== undefined) {
-      const connection = arguments[arguments.length - 1];
-      const context = {
-        queryPromise: (query, values=[]) => _queryConnectionPromise(connection, query, values),
-        queryConnectionPromise: (cxn, query, values=[]) => _queryConnectionPromise(connection, query, values),
-        getPoolConnection: () => connection,
-        startTransaction: (connection) => _queryConnectionPromise(connection, "SAVEPOINT mysavepoint;"),
-        commit: (connection) => {},
-        rollback: (connection) => _queryConnectionPromise(connection, "ROLLBACK TO mysavepoint;"),
-        releaseConnection: () => {};
+      let connector = arguments[arguments.length - 1];
+      if (connector === undefined) {
+        connector = new Connector();
       }
+      const context = { connector };
       return fn.apply(context, arguments);
     } else {
-      const context = {
-        queryPromise: _queryPromise,
-        queryConnectionPromise: _queryConnectionPromise,
-        getPoolConnection: _getPoolConnection,
-        startTransaction: (connection) => _queryConnectionPromise(connection, "START TRANSACTION;"),
-        commit: (connection) => _queryConnectionPromise(connection, "COMMIT;"),
-        rollback: (connection) => _queryConnectionPromise(connection, "ROLLBACK;"),
-        releaseConnection: (connection) => connection.release()
-      }
+      const connector = new Connector();
+      const context = { connector };
       return fn.apply(context, arguments);
     }
   }
@@ -80,12 +136,11 @@ function queryWrapper(fn) {
 
 const operations = {
   pickGame: async function(numSectors) {
-    connection = await this.getPoolConnection();
-    await this.startTransaction(connection);
-    await this.queryConnectionPromise(connection, "SET @maxID := (SELECT MAX(id) FROM games WHERE board_size = ?);", [numSectors]);
-    await this.queryConnectionPromise(connection, "SET @minID := (SELECT MIN(id) FROM games WHERE board_size = ?);", [numSectors]);
+    await this.connector.startTransaction();
+    await this.connector.query("SET @maxID := (SELECT MAX(id) FROM games WHERE board_size = ?);", [numSectors]);
+    await this.connector.query("SET @minID := (SELECT MIN(id) FROM games WHERE board_size = ?);", [numSectors]);
 
-    const { results } = await this.queryConnectionPromise(connection,
+    const { results } = await this.connector.query(
       `SELECT *
          FROM games AS r1 JOIN
              (SELECT CEIL(RAND() *
@@ -95,8 +150,8 @@ const operations = {
          ORDER BY r1.id ASC
          LIMIT 1;`, [numSectors]);
 
-    await this.commit(connection);
-    this.releaseConnection(connection);
+    await this.connector.commit();
+    this.connector.release();
 
     if (results.length === 0) {
       return {
@@ -122,7 +177,7 @@ const operations = {
     }
   },
   getGameByID: async function(gameID) {
-    const { results } = await this.queryPromise("SELECT * FROM games WHERE id = ?", [gameID]);
+    const { results } = await this.connector.query("SELECT * FROM games WHERE id = ?", [gameID]);
     if (results.length == 0) {
       return {
         game: undefined,
@@ -147,7 +202,7 @@ const operations = {
     }
   },
   getGameByGameCode: async function(gameCode) {
-    const { results } = await this.queryPromise("SELECT * from games WHERE game_code = ?", [gameCode]);
+    const { results } = await this.connector.query("SELECT * from games WHERE game_code = ?", [gameCode]);
     if (results.length == 0) {
       return {
         game: undefined,
@@ -172,12 +227,12 @@ const operations = {
     }
   },
   getSessionCodes: async function() {
-    const { results } = await this.queryPromise("SELECT session_code FROM sessions");
+    const { results } = await this.connector.query("SELECT session_code FROM sessions");
     return results.map((row) => row.session_code);
   },
   createSession: async function(sessionCode, numSectors, gameID) {
     try {
-      const { results } = await this.queryPromise("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
+      const { results } = await this.connector.query("INSERT INTO sessions (session_code, game_size, game_id) VALUES (?, ?, ?)", [sessionCode, numSectors, gameID]);
       return results.insertId;
     } catch(e) {
       if (e.code === "ER_DUP_ENTRY") {
@@ -188,7 +243,7 @@ const operations = {
     }
   },
   getSessionByCode: async function(sessionCode) {
-    const { results } = await this.queryPromise("SELECT * FROM sessions WHERE session_code = ?", [sessionCode]);
+    const { results } = await this.connector.query("SELECT * FROM sessions WHERE session_code = ?", [sessionCode]);
     if (results.length == 0) {
       return null;
     }
@@ -205,7 +260,7 @@ const operations = {
     };
   },
   getSessionByID: async function(sessionID) {
-    const { results } = await this.queryPromise("SELECT * FROM sessions WHERE id = ?", [sessionID]);
+    const { results } = await this.connector.query("SELECT * FROM sessions WHERE id = ?", [sessionID]);
     if (results.length == 0) {
       return null;
     }
@@ -222,7 +277,7 @@ const operations = {
     };
   },
   getSessionByPlayerID: async function(playerID) {
-    const { results } = await this.queryPromise("SELECT sessions.* FROM sessions, players WHERE sessions.id = players.session_id AND players.id = ?;", [playerID]);
+    const { results } = await this.connector.query("SELECT sessions.* FROM sessions, players WHERE sessions.id = players.session_id AND players.id = ?;", [playerID]);
     if (results.length == 0) {
       return null;
     }
@@ -239,35 +294,34 @@ const operations = {
     };
   },
   getTheoriesForSession: async function(sessionID) {
-    const { results } = await this.queryPromise("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
+    const { results } = await this.connector.query("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
     return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, row.turn, row.id));
   },
   getPlayersForSession: async function(sessionID) {
-    const { results } = await this.queryPromise("SELECT * FROM players WHERE session_id = ?", [sessionID]);
+    const { results } = await this.connector.query("SELECT * FROM players WHERE session_id = ?", [sessionID]);
     return results.map((row) => new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, !!+row.kicked));
   },
   getKickVotesForSession: async function(sessionID) {
-    const { results } = await this.queryPromise("SELECT kick_player, vote_player, vote FROM players INNER JOIN kickvotes ON players.id = kickvotes.kick_player WHERE players.session_id = ?", [sessionID]);
+    const { results } = await this.connector.query("SELECT kick_player, vote_player, vote FROM players INNER JOIN kickvotes ON players.id = kickvotes.kick_player WHERE players.session_id = ?", [sessionID]);
     return results.map((row) => new KickVote(row.kick_player, row.vote_player, !!+row.vote));
   },
   getPlayer: async function(playerID) {
-    const { results } = await this.queryPromise("SELECT * FROM players WHERE id = ?", [playerID]);
+    const { results } = await this.connector.query("SELECT * FROM players WHERE id = ?", [playerID]);
     const row = results[0];
     return new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, row.kicked);
   },
   newPlayer: async function(sessionCode, name, creator) {
-    const connection = await this.getPoolConnection();
-    await this.startTransaction(connection);
-    await this.queryConnectionPromise(connection, "CALL NewPlayer(?, ?, @PlayerNum, @PlayerID)", [sessionCode, name]);
-    const { results } = await this.queryConnectionPromise(connection, "SELECT @PlayerNum, @PlayerID");
+    await this.connector.startTransaction();
+    await this.connector.query("CALL NewPlayer(?, ?, @PlayerNum, @PlayerID)", [sessionCode, name]);
+    const { results } = await this.connector.query("SELECT @PlayerNum, @PlayerID");
 
     if(creator) {
-      await this.queryConnectionPromise(connection, "INSERT INTO actions(action_type, player_id, turn, resolved) VALUES('START_GAME', ?, 0, FALSE);", [results[0]["@PlayerID"]]);
+      await this.connector.query("INSERT INTO actions(action_type, player_id, turn, resolved) VALUES('START_GAME', ?, 0, FALSE);", [results[0]["@PlayerID"]]);
     }
 
-    await this.commit(connection);
+    await this.connector.commit();
 
-    this.releaseConnection(connection);
+    this.connector.release();
 
     return {
       playerNum: results[0]["@PlayerNum"],
@@ -275,7 +329,7 @@ const operations = {
     }
   },
   movePlayer: async function(playerID, sector, arrival) {
-    await this.queryPromise("UPDATE players SET sector = ?, arrival = ? WHERE id = ?", [sector, arrival, playerID]);
+    await this.connector.query("UPDATE players SET sector = ?, arrival = ? WHERE id = ?", [sector, arrival, playerID]);
   },
   kickVote: async function(sessionID, kickPlayerID, votePlayerID, kick, callbackKicked, callbackNotKicked) {
     if (kickPlayerID === votePlayerID) {
@@ -283,45 +337,43 @@ const operations = {
         allowed: false
       };
     }
-    const connection = await this.getPoolConnection();
-    await this.startTransaction(connection);
-    const bothPlayers = await this.queryConnectionPromise(connection, "SELECT id, kicked FROM players WHERE session_id = ? AND id IN (?, ?) FOR UPDATE", [sessionID, kickPlayerID, votePlayerID]);
+    await this.connector.startTransaction();
+    const bothPlayers = await this.connector.query("SELECT id, kicked FROM players WHERE session_id = ? AND id IN (?, ?) FOR UPDATE", [sessionID, kickPlayerID, votePlayerID]);
     if (bothPlayers.results.length < 2) {
-      await this.rollback(connection);
-      this.releaseConnection(connection);
+      await this.connector.rollback();
+      this.connector.release();
       return {
         allowed: false
       };
     } else if (bothPlayers.results.some((p) => p.kicked)) {
-      await this.rollback(connection);
-      this.releaseConnection(connection);
+      await this.connector.rollback();
+      this.connector.release();
       return {
         allowed: false
       };
     }
-    await this.queryConnectionPromise(connection, "INSERT INTO kickvotes(kick_player, vote_player, vote) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE vote = ?", [kickPlayerID, votePlayerID, kick, kick]);
-    const players = await this.queryConnectionPromise(connection, "SELECT COUNT(*) AS num_players FROM players WHERE session_id = ? AND kicked IS FALSE", [sessionID]);
+    await this.connector.query("INSERT INTO kickvotes(kick_player, vote_player, vote) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE vote = ?", [kickPlayerID, votePlayerID, kick, kick]);
+    const players = await this.connector.query("SELECT COUNT(*) AS num_players FROM players WHERE session_id = ? AND kicked IS FALSE", [sessionID]);
     const numPlayers = players.results[0].num_players;
-    const numVotes = await this.queryConnectionPromise(connection, "SELECT * FROM kickvotes WHERE kick_player = ? AND vote IS TRUE", [kickPlayerID]);
+    const numVotes = await this.connector.query("SELECT * FROM kickvotes WHERE kick_player = ? AND vote IS TRUE", [kickPlayerID]);
     const kicked = numVotes.results.length >= numPlayers / 2;
     if (kicked) {
-      await this.queryConnectionPromise(connection, "UPDATE players SET kicked = TRUE WHERE id = ?", [kickPlayerID]);
-      await this.queryConnectionPromise(connection, "DELETE FROM actions WHERE player_id = ?", [kickPlayerID]);
-      await callbackKicked(connection);
+      await this.connector.query("UPDATE players SET kicked = TRUE WHERE id = ?", [kickPlayerID]);
+      await this.connector.query("DELETE FROM actions WHERE player_id = ?", [kickPlayerID]);
+      await callbackKicked(this.connector);
     } else {
-      await callbackNotKicked(connection);
+      await callbackNotKicked(this.connector);
     }
-    await this.commit(connection);
-    this.releaseConnection(connection);
+    await this.connector.commit();
+    this.connector.release();
     return { allowed: true, kicked };
   },
   createTheory: async function(sessionID, playerID, spaceObject, sector, accurate, turn) {
-    await this.queryPromise("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate, turn) VALUES (?, ?, ?, ?, 0, ?, ?);", [sessionID, playerID, spaceObject, sector, accurate, turn]);
+    await this.connector.query("INSERT INTO theories (session_id, player_id, object, sector, progress, accurate, turn) VALUES (?, ?, ?, ?, 0, ?, ?);", [sessionID, playerID, spaceObject, sector, accurate, turn]);
   },
   advanceTheories: async function(sessionID) {
-    const connection = await this.getPoolConnection();
-    await this.startTransaction(connection);
-    const { results } = await this.queryConnectionPromise(connection,
+    await this.connector.startTransaction();
+    const { results } = await this.connector.query(
     `SELECT sessions.game_size, sessions.current_sector, players.id, players.sector, players.arrival, move_sectors FROM
       sessions INNER JOIN players ON sessions.id = players.session_id
 
@@ -350,11 +402,11 @@ const operations = {
     });
     for (let i = 0; i < results.length; i++) {
       if (results[i].move_sectors > 0) {
-        await this.queryConnectionPromise(connection, "CALL MovePlayer(?, ?)", [results[i].id, results[i].move_sectors]);
+        await this.connector.query("CALL MovePlayer(?, ?)", [results[i].id, results[i].move_sectors]);
       }
     }
-    await this.queryConnectionPromise(connection, "UPDATE theories SET progress = progress + 1 WHERE session_id = ? AND frozen IS FALSE;", [sessionID]);
-    await this.queryConnectionPromise(connection,
+    await this.connector.query("UPDATE theories SET progress = progress + 1 WHERE session_id = ? AND frozen IS FALSE;", [sessionID]);
+    await this.connector.query(
       `UPDATE theories SET frozen = 1 WHERE session_id = ? AND (sector IN (
         SELECT * FROM (
         SELECT sector FROM theories WHERE progress = 3 AND accurate IS TRUE AND frozen is FALSE AND session_id = ?
@@ -362,15 +414,15 @@ const operations = {
 
       ) OR progress = 3);`, [sessionID, sessionID]);
 
-    await this.commit(connection);
+    await this.connector.commit();
 
-    this.releaseConnection(connection);
+    this.connector.release();
   },
   advancePlayer: async function(playerID, sectors) {
-    await this.queryPromise("CALL MovePlayer(?, ?)", [playerID, sectors]);
+    await this.connector.query("CALL MovePlayer(?, ?)", [playerID, sectors]);
   },
   getCurrentActionsForSession: async function(sessionID) {
-    const { results } = await this.queryPromise(
+    const { results } = await this.connector.query(
       `SELECT actions.id, actions.action_type, actions.player_id, actions.turn
       FROM actions, players
       WHERE actions.resolved IS FALSE AND actions.player_id = players.id
@@ -379,7 +431,7 @@ const operations = {
     return results.map((row) => new Action(ActionType[row.action_type], row.player_id, row.turn, row.id));
   },
   getPreviousTurns: async function(sessionID) {
-    const { results } = await this.queryPromise(
+    const { results } = await this.connector.query(
       `SELECT actions.player_id, actions.resolve_time, actions.resolve_action, actions.turn
       FROM actions, players
       WHERE actions.resolved IS TRUE AND actions.action_type != 'START_GAME'
@@ -391,10 +443,10 @@ const operations = {
     return results.map((row) => Turn.parse(row.resolve_action, row.turn, row.player_id, row.resolve_time));
   },
   createAction: async function(actionType, playerID, turn) {
-    await this.queryPromise("INSERT INTO actions(action_type, player_id, turn, resolved) VALUES(?, ?, ?, FALSE);", [actionType, playerID, turn]);
+    await this.connector.query("INSERT INTO actions(action_type, player_id, turn, resolved) VALUES(?, ?, ?, FALSE);", [actionType, playerID, turn]);
   },
   getCurrentAction: async function(playerID) {
-    const { results } = await this.queryPromise("SELECT id, action_type, player_id, turn FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
+    const { results } = await this.connector.query("SELECT id, action_type, player_id, turn FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
 
     if (results.length == 0) {
       return null;
@@ -417,13 +469,13 @@ const operations = {
       turnCode = turn.code();
     }
 
-    await this.queryPromise("UPDATE actions SET resolved = TRUE, resolve_time = ?, resolve_action = ? WHERE id = ?;", [turnTime, turnCode, actionID]);
+    await this.connector.query("UPDATE actions SET resolved = TRUE, resolve_time = ?, resolve_action = ? WHERE id = ?;", [turnTime, turnCode, actionID]);
   },
   setCurrentAction: async function(sessionID, action) {
-    await this.queryPromise("UPDATE sessions SET current_action = ?, current_turn = ?, action_player = ? WHERE id = ?;", [action.actionType, action.turn, action.playerID, sessionID]);
+    await this.connector.query("UPDATE sessions SET current_action = ?, current_turn = ?, action_player = ? WHERE id = ?;", [action.actionType, action.turn, action.playerID, sessionID]);
   },
   setCurrentStatus: async function(sessionID, action, currentSector, firstRotation) {
-    await this.queryPromise(
+    await this.connector.query(
       `UPDATE sessions SET first_rotation = ?, current_sector = ?,
       current_action = ?, current_turn = ?, action_player = ?
       WHERE id = ?;`,
@@ -432,7 +484,7 @@ const operations = {
   },
   setColor: async function(playerID, color) {
     try {
-      await this.queryPromise("UPDATE players SET color = ? WHERE id = ?", [color, playerID]);
+      await this.connector.query("UPDATE players SET color = ? WHERE id = ?", [color, playerID]);
       return true;
     } catch(e) {
       if (e.code === "ER_DUP_ENTRY") {
