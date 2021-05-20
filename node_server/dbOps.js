@@ -81,6 +81,7 @@ class Connector {
   async commit() {
     if (this.transactionStack.length === 0) {
       const result = await _queryConnectionPromise(this.connection, "COMMIT;")
+      this.release();
       this.connection = undefined;
       this.releaseLock();
       return result;
@@ -93,6 +94,7 @@ class Connector {
   async rollback(connection) {
     if (this.transactionStack.length === 0) {
       const result = await _queryConnectionPromise(this.connection, "ROLLBACK;")
+      this.release();
       this.connection = undefined;
       this.releaseLock();
       return result;
@@ -103,17 +105,17 @@ class Connector {
   }
 
   async release() {
-    if (this.connection !== undefined) {
+    if (this.connection !== undefined && this.transactionStack.length === 0) {
       this.connection.release();
     }
   }
 
   async acquireLock() {
-    this.release = await this.lock.acquire();
+    this.releaseLockFunc = await this.lock.acquire();
   }
 
   async releaseLock() {
-    this.release();
+    this.releaseLockFunc();
   }
 }
 
