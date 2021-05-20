@@ -103,6 +103,16 @@ app.post("/setColor", function(req, res, next) {
   });
 });
 
+app.post("/castKickVote", function(req, res, next) {
+  const sessionID = parseInt(req.query.sessionID);
+  const playerID = parseInt(req.query.playerID);
+  const kickPlayerID = req.body.kickPlayerID;
+  const vote = req.body.vote;
+  sessionManager.castKickVote(sessionID, playerID, kickPlayerID, vote).then((allowed) => {
+    res.json({allowed});
+  });
+});
+
 app.post("/startSession/", function(req, res, next) {
   console.log(req.query);
   const sessionID = parseInt(req.query.sessionID);

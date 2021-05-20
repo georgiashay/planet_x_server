@@ -290,13 +290,14 @@ class TheoryTurn extends Turn {
 }
 
 class Player {
-  constructor(playerID, num, name, color, sector, arrival) {
+  constructor(playerID, num, name, color, sector, arrival, kicked) {
     this.playerID = playerID;
     this.num = num;
     this.name = name;
     this.color = color;
     this.sector = sector;
     this.arrival = arrival;
+    this.kicked = kicked;
   }
 
   toString() {
@@ -311,7 +312,24 @@ class Player {
       color: this.color,
       sector: this.sector,
       arrival: this.arrival,
+      kicked: this.kicked,
       id: this.playerID
+    }
+  }
+}
+
+class KickVote {
+  constructor(kickPlayerID, votePlayerID, vote) {
+    this.kickPlayerID = kickPlayerID;
+    this.votePlayerID = votePlayerID;
+    this.vote = vote;
+  }
+
+  json() {
+    return {
+      kickPlayerID: this.kickPlayerID,
+      votePlayerID: this.votePlayerID,
+      vote: this.vote
     }
   }
 }
@@ -425,6 +443,7 @@ module.exports = {
   ActionType,
   Action,
   Player,
+  KickVote,
   Theory,
   Score
 }
