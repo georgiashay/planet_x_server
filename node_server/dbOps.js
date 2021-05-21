@@ -53,9 +53,10 @@ function _queryConnectionPromise(connection, query, values=[]) {
 
 class Connector {
   constructor(connection=undefined) {
-    this.connection = undefined;
-    this.transactionStack = [];
-    this.lock = new Mutex();
+    this.connection = connection;
+    this.transactionIndex = 0;
+    this.locks = {};
+    this.lockReleases = {};
   }
 
   async query(query, values=[]) {
@@ -67,55 +68,61 @@ class Connector {
   }
 
   async startTransaction() {
+    await this.acquireLock(this.transactionIndex);
+    this.transactionIndex++;
     if (this.connection === undefined) {
-      this.acquireLock();
       this.connection = await _getPoolConnection();
       return _queryConnectionPromise(this.connection, "START TRANSACTION;");
     } else {
-      const index = this.transactionStack.length;
-      this.transactionStack.push(index);
-      return _queryConnectionPromise(this.connection, "SAVEPOINT intermediate_?", [index]);
+      return _queryConnectionPromise(this.connection, "SAVEPOINT intermediate_?", [this.transactionIndex-1]);
     }
   }
 
   async commit() {
-    if (this.transactionStack.length === 0) {
+    this.transactionIndex--;
+    if (this.transactionIndex === 0) {
       const result = await _queryConnectionPromise(this.connection, "COMMIT;")
       this.release();
       this.connection = undefined;
-      this.releaseLock();
+      this.releaseLock(this.transactionIndex);
       return result;
     } else {
-      const index = this.transactionStack.pop();
-      return _queryConnectionPromise(this.connection, "RELEASE SAVEPOINT intermediate_?", [index]);
+      const result = await _queryConnectionPromise(this.connection, "RELEASE SAVEPOINT intermediate_?", [this.transactionIndex]);
+      this.releaseLock(this.transactionIndex);
+      return result;
     }
   }
 
   async rollback(connection) {
-    if (this.transactionStack.length === 0) {
+    this.transactionIndex--;
+    if (this.transactionIndex === 0) {
       const result = await _queryConnectionPromise(this.connection, "ROLLBACK;")
       this.release();
       this.connection = undefined;
-      this.releaseLock();
+      this.releaseLock(this.transactionIndex);
       return result;
     } else {
-      const index = this.transactionStack.pop();
-      return _queryConnectionPromise(this.connection, "ROLLBACK TO intermediate_?", [index]);
+      const result = await _queryConnectionPromise(this.connection, "ROLLBACK TO intermediate_?", [this.transactionIndex]);
+      this.releaseLock(this.transactionIndex);
+      return result;
     }
   }
 
   async release() {
-    if (this.connection !== undefined && this.transactionStack.length === 0) {
+    if (this.connection !== undefined && this.transactionIndex === 0) {
       this.connection.release();
     }
   }
 
-  async acquireLock() {
-    this.releaseLockFunc = await this.lock.acquire();
+  async acquireLock(index) {
+    if (this.locks[index] === undefined) {
+      this.locks[index] = new Mutex();
+    }
+    this.lockReleases[index] = await this.locks[index].acquire();
   }
 
-  async releaseLock() {
-    this.releaseLockFunc();
+  async releaseLock(index) {
+    this.lockReleases[index]();
   }
 }
 
@@ -153,7 +160,6 @@ const operations = {
          LIMIT 1;`, [numSectors]);
 
     await this.connector.commit();
-    this.connector.release();
 
     if (results.length === 0) {
       return {
@@ -323,8 +329,6 @@ const operations = {
 
     await this.connector.commit();
 
-    this.connector.release();
-
     return {
       playerNum: results[0]["@PlayerNum"],
       playerID: results[0]["@PlayerID"]
@@ -343,13 +347,11 @@ const operations = {
     const bothPlayers = await this.connector.query("SELECT id, kicked FROM players WHERE session_id = ? AND id IN (?, ?) FOR UPDATE", [sessionID, kickPlayerID, votePlayerID]);
     if (bothPlayers.results.length < 2) {
       await this.connector.rollback();
-      this.connector.release();
       return {
         allowed: false
       };
     } else if (bothPlayers.results.some((p) => p.kicked)) {
       await this.connector.rollback();
-      this.connector.release();
       return {
         allowed: false
       };
@@ -367,7 +369,6 @@ const operations = {
       await callbackNotKicked(this.connector);
     }
     await this.connector.commit();
-    this.connector.release();
     return { allowed: true, kicked };
   },
   createTheory: async function(sessionID, playerID, spaceObject, sector, accurate, turn) {
@@ -417,8 +418,6 @@ const operations = {
       ) OR progress = 3);`, [sessionID, sessionID]);
 
     await this.connector.commit();
-
-    this.connector.release();
   },
   advancePlayer: async function(playerID, sectors) {
     await this.connector.query("CALL MovePlayer(?, ?)", [playerID, sectors]);
