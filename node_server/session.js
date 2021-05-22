@@ -392,7 +392,7 @@ class SessionManager {
     const broker = createBroker(server, (req) => {
       const sessionID = req.url.slice(1);
       return Promise.resolve(sessionID);
-    });
+    }, { onCloseDeleteChannels: false });
     this.broker = broker;
   }
 
