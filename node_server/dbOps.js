@@ -63,7 +63,12 @@ class Connector {
     if (this.connection === undefined) {
       return _queryPromise(query, values);
     } else {
-      return _queryConnectionPromise(this.connection, query, values);
+      await this.acquireLock(this.transactionIndex);
+      this.transactionIndex++;
+      const result = await _queryConnectionPromise(this.connection, query, values);
+      this.transactionIndex--;
+      await this.releaseLock(this.transactionIndex);
+      return result;
     }
   }
 
@@ -124,6 +129,14 @@ class Connector {
   async releaseLock(index) {
     this.lockReleases[index]();
   }
+
+  copy() {
+    const newConnector = new Connector(this.connection);
+    newConnector.transactionIndex = this.transactionIndex;
+    newConnector.locks = this.locks;
+    newConnector.lockReleases = this.lockReleases;
+    return newConnector;
+  }
 }
 
 function queryWrapper(fn) {
@@ -132,6 +145,8 @@ function queryWrapper(fn) {
       let connector = arguments[arguments.length - 1];
       if (connector === undefined) {
         connector = new Connector();
+      } else {
+        connector = connector.copy();
       }
       const context = { connector };
       return fn.apply(context, arguments);
