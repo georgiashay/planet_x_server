@@ -463,8 +463,12 @@ class SessionManager {
           if (actions.length === 0) {
             if (session.currentAction.actionType === ActionType.THEORY_PHASE) {
               await this.advanceTheories(session);
+              await this.setNextAction(session);
+            } else if (session.currentAction.actionType === ActionType.LAST_ACTION) {
+              await operations.setCurrentAction(sessionID, new Action(ActionType.END_GAME, null, session.currentAction.turn + 1), cxn);
+            } else {
+              await this.setNextAction(session);
             }
-            await this.setNextAction(session);
           }
           await session.refresh();
         }

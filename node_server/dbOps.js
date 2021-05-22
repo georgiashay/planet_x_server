@@ -356,6 +356,16 @@ const operations = {
         allowed: false
       };
     }
+    const status = await this.connector.query("SELECT current_action FROM sessions WHERE id = ?", [sessionID]);
+    if (status.results[0].current_action === "LAST_ACTION") {
+      const playerActions = await this.connector.query("SELECT action_type FROM actions WHERE player_id = ? AND resolved IS FALSE", [kickPlayerID]);
+      if (playerActions.results.length === 0) {
+        this.connector.rollback();
+        return {
+          allowed: false
+        }
+      }
+    }
     await this.connector.query("INSERT INTO kickvotes(kick_player, vote_player, vote) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE vote = ?", [kickPlayerID, votePlayerID, kick, kick]);
     const players = await this.connector.query("SELECT COUNT(*) AS num_players FROM players WHERE session_id = ? AND kicked IS FALSE", [sessionID]);
     const numPlayers = players.results[0].num_players;
