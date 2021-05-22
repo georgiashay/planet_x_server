@@ -407,15 +407,16 @@ class SessionManager {
     const session = await Session.findByCode(sessionCode, connector);
 
     if (session == null) {
-      return {
-        playerID: undefined,
-        playerNum: undefined,
-        session: undefined
-      }
+      return {};
     }
 
     if (session.currentAction.actionType !== ActionType.START_GAME) {
-      return false;
+      return {};
+    }
+
+    const players = await session.getPlayers();
+    if (players.some((player) => player.name === name)) {
+      return {};
     }
 
     const { playerNum, playerID } = await operations.newPlayer(sessionCode, name, false, connector);

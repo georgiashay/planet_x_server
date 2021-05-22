@@ -53,7 +53,7 @@ app.post("/createSession/:numSectors/", function(req, res, next) {
 app.post("/joinSession/:sessionCode/", function(req, res, next) {
   sessionManager.joinSession(req.params.sessionCode, req.query.name).then(async ({playerID, playerNum, session}) => {
     if (session == undefined) {
-      res.json({found: false})
+      res.json({ found: false });
     } else {
       const gameJson = await session.gameJson();
       const stateJson = await session.stateJson();
