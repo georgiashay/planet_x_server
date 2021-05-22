@@ -365,6 +365,10 @@ const operations = {
           allowed: false
         }
       }
+    } else if (status.results[0].current_action === "END_GAME") {
+      return {
+        allowed: false
+      }
     }
     await this.connector.query("INSERT INTO kickvotes(kick_player, vote_player, vote) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE vote = ?", [kickPlayerID, votePlayerID, kick, kick]);
     const players = await this.connector.query("SELECT COUNT(*) AS num_players FROM players WHERE session_id = ? AND kicked IS FALSE", [sessionID]);
