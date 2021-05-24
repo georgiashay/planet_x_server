@@ -7,6 +7,8 @@ from .board import *
 from .board_type import *
 from .rules import *
 
+ALLOW_OBJ_EMPTY_RESEARCH = True
+
 class EliminationData:
     """
     A structure representing the objects that need eliminated as potential candidates for
@@ -127,10 +129,6 @@ class StartingInformation:
                     object_counts[obj] += 1
                 else:
                     object_counts[obj] = 1
-        
-        # Weight the objects according to a distribution that would make the clues more
-        # even in their type of objects
-        object_weights = { obj: 1/object_counts[obj] for obj in object_counts }
                 
         clues = {}
         for equinox in Equinox:
@@ -146,9 +144,8 @@ class StartingInformation:
                 if len(clues[equinox]) == num_clues:
                     break
 
-                # Choose a random clue for this sector according to the weight distribution
-                weights = [object_weights[obj] for obj in clue_options[sector]]
-                eliminated_object = random.choices(clue_options[sector], weights=weights)[0]
+                # Choose a random clue for this sector
+                eliminated_object = random.choice(clue_options[sector])
                 clues[equinox].append(EliminationClue(sector, eliminated_object))
                 
         return StartingInformation(clues)
@@ -217,7 +214,10 @@ class Research:
                         is not SpaceObject.PlanetX and obj is not SpaceObject.Empty]
         
         # Singular rules are either about one object or that object related to empty sectors
-        singular_types = normal_types + [(obj, SpaceObject.Empty) for obj in normal_types]
+        singular_types = normal_types.copy()
+        if ALLOW_OBJ_EMPTY_RESEARCH:
+            singular_types += [(obj, SpaceObject.Empty) for obj in normal_types]
+                        
         # Pair rules combine any two normal objects (not Planet X or empty sectors)
         pair_types = list(itertools.combinations(normal_types, 2))
         
@@ -237,11 +237,11 @@ class Research:
             object_type = singular_types.pop()
             if type(object_type) is SpaceObject:
                 # Try to generate a singular rule for any singular rule type
-                rule_choices = [rule.generate_rule(board, constraints, object_type) \
+                rule_choices = [rule.generate_rule(board, constraints, rules, object_type) \
                                 for rule in Research.SINGULAR_RULES]
             else:
                 # Try to generate a pair rule for the type and an empty sector for any empty rule type
-                rule_choices = [rule.generate_rule(board, constraints, object_type[0], object_type[1]) \
+                rule_choices = [rule.generate_rule(board, constraints, rules, object_type[0], object_type[1]) \
                                for rule in Research.EMPTY_RULES]
                 
             # Pick one of the rules randomly according to the weights
@@ -253,15 +253,31 @@ class Research:
                 if rule_weights[type(new_rule)] > 1:
                     rule_weights[type(new_rule)] -= 1
                 rules.append(new_rule)
+                
+                # Remove "this & empty" or "just this" corresponding rule
+                if ALLOW_OBJ_EMPTY_RESEARCH:
+                    if type(object_type) is SpaceObject:
+                        try:
+                            singular_types.remove((object_type, SpaceObject.Empty))
+                        except ValueError:
+                            pass
+                    else:
+                        try:
+                            singular_types.remove(object_type[0])
+                        except ValueError:
+                            pass
+            
+            print(singular_types)
+                                    
             num_singular_rules += 1
         
         # Generate pair rules
         while len(rules) < num_rules and len(pair_types):
             object1, object2 = pair_types.pop()
             # Generate pair rules for both orderings of object 1 and 2
-            rule_choices = [rule.generate_rule(board, constraints, object1, object2) \
+            rule_choices = [rule.generate_rule(board, constraints, rules, object1, object2) \
                            for rule in Research.RELATION_RULES]
-            rule_choices.extend([rule.generate_rule(board, constraints, object2, object1) \
+            rule_choices.extend([rule.generate_rule(board, constraints, rules, object2, object1) \
                                 for rule in Research.RELATION_RULES])
             rule_choices = [rule for rule in rule_choices if rule is not None]
             
@@ -378,7 +394,7 @@ class Conference:
         if len(sectors_left) == 0:
             for i in range(num_rules - len(rules)):
                 for obj, rule_type in possible_rules:
-                    rule = rule_type.generate_rule(board, constraints, SpaceObject.PlanetX, obj)
+                    rule = rule_type.generate_rule(board, constraints, rules, SpaceObject.PlanetX, obj)
                     if rule is not None:
                         possible_rules = [rule for rule in possible_rules if rule[0] is not obj]
                         rules.append(rule)
