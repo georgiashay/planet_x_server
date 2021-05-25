@@ -215,7 +215,17 @@ class Rule(ABC):
         pass
     
     @abstractmethod
-    def strength(self, board):
+    def strength(self, board, constraints):
+        """
+        Returns a numerical value 0-1 representing the strength of the rule based on 
+        what combinations of object positions are eliminated. For a RelationRule, this
+        is based on what object positions are eliminated given the positions of all 
+        space_object2. Takes constraints into account.
+        """
+        pass
+            
+    @abstractmethod
+    def approx_strength(self, board):
         """
         Returns a numerical value 0-1 representing the strength of the rule based on 
         what combinations of object positions are eliminated. For a RelationRule, this
@@ -325,7 +335,27 @@ class RelationRule(Rule):
         """
         pass
     
-    def strength(self, board):
+    def strength(self, board, constraints):
+        relevant_constraints = [constraint for constraint in constraints if 
+                                (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object1)
+                                or (isinstance(constraint, RelationRule) and 
+                                    set(constraint.space_objects()) == set(self.space_objects()))]
+        
+        base_board = Board([obj if obj is self.space_object2 else None for obj in board])
+        boards = [base_board]
+        for constraint in relevant_constraints:
+            next_boards = []
+            for b in boards:
+                next_boards.extend(constraint.fill_board(b, board.num_objects()))
+            boards = next_boards
+            
+        num_total_combos = len(boards)
+        valid_boards = [b for b in boards if self.is_satisfied(b)]
+        num_valid_combos = len(valid_boards)
+        
+        return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
+    
+    def approx_strength(self, board):
         num_object1 = board.num_objects()[self.space_object1]
         num_object2 = board.num_objects()[self.space_object2]
         
@@ -345,10 +375,29 @@ class RelationRule(Rule):
             valid_combos = comb(num_positive_positions, num_object1)
             invalid_combos = total_combos - valid_combos
             return invalid_combos/(total_combos - 1)
+        
     
 class SelfRule(Rule):
     def space_objects(self):
         return [self.space_object]
+    
+    def strength(self, board, constraints):
+        relevant_constraints = [constraint for constraint in constraints if 
+                                (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object)]
+        
+        base_board = Board([None] * len(board))
+        boards = [base_board]
+        for constraint in relevant_constraints:
+            next_boards = []
+            for b in boards:
+                next_boards.extend(constraint.fill_board(b, board.num_objects()))
+            boards = next_boards
+            
+        num_total_combos = len(boards)
+        valid_boards = [b for b in boards if self.is_satisfied(b)]
+        num_valid_combos = len(valid_boards)
+        
+        return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
         
 class AdjacentRule(RelationRule):
     """
@@ -1820,7 +1869,7 @@ class AdjacentSelfRule(SelfRule):
             
         return repeats
     
-    def strength(self, board):
+    def approx_strength(self, board):
         num_object = board.num_objects()[self.space_object]
         board_size = len(board)
         
@@ -2129,7 +2178,7 @@ class OppositeSelfRule(SelfRule):
         qualifier = random.choice(qualifier_options)
         return OppositeSelfRule(space_object, qualifier)
     
-    def strength(self, board):
+    def approx_strength(self, board):
         if len(board) % 2 != 0:
             return 0
         
@@ -2343,7 +2392,7 @@ class BandRule(SelfRule):
             rand_band = random.randint(band_min, band_max)
             return BandRule(space_object, rand_band, Precision.WITHIN)
      
-    def strength(self, board):
+    def approx_strength(self, board):
         num_object = board.num_objects()[self.num_object]
         # Valid only for band_size < len(board)/2
         if self.precision is Precision.EXACT:
@@ -2452,7 +2501,7 @@ class SectorsRule(SelfRule):
         # Will not generate generic rules of this type
         return None
      
-    def strength(self, board):
+    def approx_strength(self, board):
         num_object = board.num_objects()[self.space_object]
         total_combos = comb(len(board), num_object)
         valid_combos = comb(len(self.positions), num_object)
