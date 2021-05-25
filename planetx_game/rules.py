@@ -3,6 +3,7 @@ import random
 import json
 from enum import Enum
 from abc import *
+from math import comb, factorial
 
 from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch
 from .board import *
@@ -31,7 +32,7 @@ class RuleQualifier(Enum):
     def for_object(self, obj, num_object):
         """
         Returns a string representing this qualifier for a specific object
-            e.g. "No gas cloud is" or "At least one asteriod is" or "Every comet is not"
+            e.g. "No gas cloud is" or "At least one asteroid is" or "Every comet is not"
         
         obj: The space object 
         num_object: How many of this space object are on the board
@@ -214,6 +215,16 @@ class Rule(ABC):
         pass
     
     @abstractmethod
+    def strength(self, board):
+        """
+        Returns a numerical value 0-1 representing the strength of the rule based on 
+        what combinations of object positions are eliminated. For a RelationRule, this
+        is based on what object positions are eliminated given the positions of all 
+        space_object2.
+        """
+        pass
+    
+    @abstractmethod
     def code(self):
         """
         Return compressed string code that represents this rule
@@ -303,6 +314,37 @@ class RelationRule(Rule):
         should eliminate data.goal sectors.
         """
         pass
+    
+    
+    @abstractmethod
+    def positive_positions(self, board):
+        """
+        List of indices in board that follow this relation positively with respect to 
+        the positions of object2. I.E., positions where object1 could be if the 
+        qualifier was EVERY
+        """
+        pass
+    
+    def strength(self, board):
+        num_object1 = board.num_objects()[self.space_object1]
+        num_object2 = board.num_objects()[self.space_object2]
+        
+        num_positions = len(board) - num_object2
+        num_positive_positions = len(self.positive_positions(board))
+                
+        total_combos = comb(num_positions, num_object1)
+
+        if self.qualifier is RuleQualifier.NONE:
+            valid_combos = comb(num_positions - num_positive_positions, num_object1)
+            invalid_combos = total_combos - valid_combos
+            return invalid_combos/(total_combos - 1)
+        elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            invalid_combos = comb(num_positions - num_positive_positions, num_object1)
+            return invalid_combos/(total_combos - 1)
+        elif self.qualifier is RuleQualifier.EVERY:
+            valid_combos = comb(num_positive_positions, num_object1)
+            invalid_combos = total_combos - valid_combos
+            return invalid_combos/(total_combos - 1)
     
 class SelfRule(Rule):
     def space_objects(self):
@@ -622,6 +664,11 @@ class AdjacentRule(RelationRule):
                 return eliminated, rule
         
         return None, None
+    
+    def positive_positions(self, board):
+        return [i for i in range(len(board)) 
+                 if board[i] is not self.space_object2 and 
+                 (board[i-1] is self.space_object2 or board[i+1] is self.space_object2)]
     
     def code(self):
         return "A" + str(self.space_object1) + str(self.space_object2) + self.qualifier.code()
@@ -956,6 +1003,16 @@ class OppositeRule(RelationRule):
                 return eliminated, rule
         
         return None, None
+    
+    def positive_positions(self, board):
+        if len(board) % 2 != 0:
+            return []
+        
+        half = len(board) // 2
+        
+        return [i for i in range(len(board)) 
+                 if board[i] is not self.space_object2 and 
+                 board[i+half] is self.space_object2]
     
     def code(self):
         return "O" + str(self.space_object1) + str(self.space_object2) + self.qualifier.code()
@@ -1429,6 +1486,19 @@ class WithinRule(RelationRule):
         
         return rand_rule_opts[1], rand_rule
 
+    def positive_positions(self, board):
+        obj2_positions = [i for i, obj in enumerate(board) if obj is self.space_object2]
+        within_positions = []
+        board_size = len(board)
+        
+        for i in range(len(board)):
+            if board[i] != self.space_object2:
+                sectors_away = min(WithinRule._circle_dist(i, j, board_size) for j in obj2_positions)
+                if sectors_away <= self.num_sectors:
+                    within_positions.append(i)
+        
+        return within_positions
+    
     def code(self):
         return "W" + str(self.space_object1) + str(self.space_object2) + self.qualifier.code() + str(self.num_sectors)
     
@@ -1516,9 +1586,9 @@ class AdjacentSelfRule(SelfRule):
         board_perms = add_one_no_self_touch(self.space_object, num_obj, board.copy())
         return board_perms
     
-    def _fill_board_runs(self, board, num_obj, start_i=0):
+    def _fill_board_runs(self, board, num_obj, start_i=0, t=0):
         # Fill in board with runs of asteroids, starting new runs only at start_i and after
-        
+
         # If there are no asteroids left, check if board is valid
         if num_obj == 0:
             if self.is_satisfied(board):
@@ -1537,24 +1607,28 @@ class AdjacentSelfRule(SelfRule):
                 if board[i+1] is None and board[i+2] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i+1] = self.space_object
-                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i)
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i, t+1)
                     
                 return
-                    
+                
+        run_starts = [i for i in range(len(board)) if board[i] is self.space_object 
+                      and board[i-1] is not self.space_object]
+                
         for i in range(len(board)):
             obj = board[i]
             if obj is None:
+                is_last_run = len(run_starts) == 0 or i < run_starts[0] or i >= run_starts[-1]
                 # Continue an asteroid run without combining two runs
-                if board[i-1] is self.space_object and board[i+1] is not self.space_object:
+                if is_last_run and board[i-1] is self.space_object and board[i+1] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i] = self.space_object
-                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i)
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, start_i, t+1)
                 # OR start a new asteroid run, if conditions allow
                 elif i >= start_i and num_obj > 1 and board[i-1] is not self.space_object \
                 and board[i+1] is not self.space_object:
                     board_copy = board.copy()
                     board_copy[i] = self.space_object
-                    yield from self._fill_board_runs(board_copy, num_obj - 1, i+1)
+                    yield from self._fill_board_runs(board_copy, num_obj - 1, i+1, t+1)
             
     def _prepare_board(self, board, num_obj, lone, run_backwards, start_i=None):
         if start_i is None:
@@ -1714,6 +1788,75 @@ class AdjacentSelfRule(SelfRule):
         # Choose a random rule
         qualifier = random.choice(qualifier_options)
         return AdjacentSelfRule(space_object, qualifier)
+    
+    @staticmethod
+    def _together_partitions(n, I=2, memo={}):
+        if n in memo:
+            return memo[(n, I)]
+        elif n < 2:
+            memo[(n, I)] = []
+            return []
+        else:
+            partitions = [(n,)]
+            for i in range(I, n//2 + 1):
+                for p in AdjacentSelfRule._together_partitions(n-i, i):
+                    partitions.append((i,) + p)
+               
+            memo[(n, I)] = partitions
+            return partitions
+        
+    @staticmethod
+    def _repeats(partition):
+        counts = {}
+        for val in partition:
+            if val in counts:
+                counts[val] += 1
+            else:
+                counts[val] = 1
+        
+        repeats = 1
+        for val in counts:
+            repeats *= factorial(counts[val])
+            
+        return repeats
+    
+    def strength(self, board):
+        num_object = board.num_objects()[self.space_object]
+        board_size = len(board)
+        
+        num_total_combos = comb(board_size, num_object)
+                
+        if self.qualifier is RuleQualifier.EVERY:
+            num_positive_combos = 0
+            for partition in AdjacentSelfRule._together_partitions(num_object):
+                repeats = AdjacentSelfRule._repeats(partition)
+                combos = board_size
+                spots_left = board_size - num_object - 1
+                if spots_left >= len(partition) - 1:
+                    combos *= int(factorial(spots_left)/factorial(spots_left - len(partition) + 1))
+                else:
+                    combos = 0
+                combos //= repeats
+                num_positive_combos += combos
+                
+            return (num_total_combos - num_positive_combos)/(num_total_combos - 1)
+        else:
+            if (board_size < 2 * num_object):
+                return 0
+
+            num_none_combos = board_size
+            spots_left = board_size - num_object - 1
+            if spots_left >= num_object - 1:
+                num_none_combos *= int(factorial(spots_left)/factorial(spots_left - num_object + 1))
+            else:
+                num_none_combos = 0
+                
+            num_none_combos //= factorial(num_object)
+            
+            if self.qualifier is RuleQualifier.NONE:
+                return (num_total_combos - num_none_combos)/(num_total_combos - 1)
+            elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+                return num_none_combos/(num_total_combos - 1)
     
     def code(self):
         return "C" + str(self.space_object) + self.qualifier.code()
@@ -1986,6 +2129,36 @@ class OppositeSelfRule(SelfRule):
         qualifier = random.choice(qualifier_options)
         return OppositeSelfRule(space_object, qualifier)
     
+    def strength(self, board):
+        if len(board) % 2 != 0:
+            return 0
+        
+        num_object = board.num_objects()[self.space_object]
+        half_num = num_object // 2
+        board_size = len(board)
+        half_size = board_size // 2
+        
+        num_total_combos = comb(board_size, num_object)
+            
+        if self.qualifier is RuleQualifier.EVERY:
+            num_valid_combos = comb(half_size, half_num)
+            return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
+        else:
+            if len(board) < 2 * num_object:
+                return 0
+            
+            num_none_combos = 1
+            sectors_left = board_size
+            for i in range(num_object):
+                num_none_combos *= sectors_left
+                sectors_left -= 2
+            num_none_combos //= int(factorial(num_object))
+            
+            if self.qualifier is RuleQualifier.NONE:
+                return (num_total_combos - num_none_combos)/(num_total_combos - 1)
+            elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+                return num_none_combos/(num_total_combos - 1)
+    
     def code(self):
         return "S" + str(self.space_object) + self.qualifier.code()
     
@@ -2169,7 +2342,22 @@ class BandRule(SelfRule):
             # (The space objects are still within this size)
             rand_band = random.randint(band_min, band_max)
             return BandRule(space_object, rand_band, Precision.WITHIN)
-        
+     
+    def strength(self, board):
+        num_object = board.num_objects()[self.num_object]
+        # Valid only for band_size < len(board)/2
+        if self.precision is Precision.EXACT:
+            band_locations = len(board)
+            inner_band_combos = comb(self.band_size - 2, num_object - 2)
+            num_positive_combos = band_locations * inner_band_combos
+        elif self.precision is Precision.WITHIN:
+            band_locations = len(board)
+            right_band_combos = comb(self.band_size - 1, num_object - 1)
+            num_positive_combos = band_locations * right_band_combos
+            
+        num_total_combos = comb(len(board), num_object)
+        return (num_total_combos - num_positive_combos)/(num_total_combos - 1)
+    
     def code(self):
         return "B" + str(self.space_object) + str(self.band_size) + self.precision.code()
     
@@ -2263,7 +2451,13 @@ class SectorsRule(SelfRule):
     def generate_rule(cls, board, constraints, other_rules, space_object):
         # Will not generate generic rules of this type
         return None
-        
+     
+    def strength(self, board):
+        num_object = board.num_objects()[self.space_object]
+        total_combos = comb(len(board), num_object)
+        valid_combos = comb(len(self.positions), num_object)
+        return (total_combos - valid_combos)/(total_combos - 1)
+    
     def code(self):
         return "P" + str(self.space_object) + "".join(chr(i + 65) for i in self.positions)
     
