@@ -531,4 +531,17 @@ for (const funcKey in operations) {
   wrappedOperations[funcKey] = queryWrapper(operations[funcKey]);
 }
 
+async function test() {
+  // const { results } = await _queryPromise("SHOW processlist;");
+  // const { results } = await _queryPromise("KILL 571;");
+  // console.log(results);
+  // console.log("DELETING");
+  // const { results } = await _queryPromise("DELETE FROM games WHERE board_size = 24;");
+  // console.log(results);
+  // const { results } = await _queryPromise("SELECT COUNT(*) FROM games WHERE board_size = 18;");
+  // console.log(results);
+}
+
+test();
+
 module.exports = wrappedOperations;

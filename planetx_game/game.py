@@ -214,82 +214,41 @@ class Research:
                         is not SpaceObject.PlanetX and obj is not SpaceObject.Empty]
         
         # Singular rules are either about one object or that object related to empty sectors
-        singular_types = normal_types.copy()
+        singular_rules = [rule.generate_rule(board, constraints, [], obj) 
+                          for rule in Research.SINGULAR_RULES for obj in normal_types]
+        
         if ALLOW_OBJ_EMPTY_RESEARCH:
-            singular_types += [(obj, SpaceObject.Empty) for obj in normal_types]
-                        
+            singular_rules += [rule.generate_rule(board, constraints, [], obj, SpaceObject.Empty) 
+                               for rule in Research.EMPTY_RULES for obj in normal_types]
+            
+        singular_rules = [rule for rule in singular_rules if rule is not None]
+        singular_strengths = [rule.base_strength(board) for rule in singular_rules]
+            
         # Pair rules combine any two normal objects (not Planet X or empty sectors)
         pair_types = list(itertools.combinations(normal_types, 2))
         
-        # Shuffle the rule types
-        random.shuffle(singular_types)
-        random.shuffle(pair_types)
-        
-        # Subtly weight the rules against repeating the same rule type
-        # Weights are decreased when the rule type is used, but don't go to 0.
-        num_rule_types = len(Research.RELATION_RULES) + len(Research.SINGULAR_RULES)
-        rule_weight = math.ceil(num_rules * 1.5/num_rule_types)
-        rule_weights = { rule_type: rule_weight for rule_type in Research.RELATION_RULES + Research.SINGULAR_RULES }
-        
-        # Create singular rules
-        num_singular_rules = 0
-        while num_singular_rules < total_singular_rules and len(singular_types):
-            object_type = singular_types.pop()
-            if type(object_type) is SpaceObject:
-                # Try to generate a singular rule for any singular rule type
-                rule_choices = [rule.generate_rule(board, constraints, rules, object_type) \
-                                for rule in Research.SINGULAR_RULES]
-            else:
-                # Try to generate a pair rule for the type and an empty sector for any empty rule type
-                rule_choices = [rule.generate_rule(board, constraints, rules, object_type[0], object_type[1]) \
-                               for rule in Research.EMPTY_RULES]
-                
-            # Pick one of the rules randomly according to the weights
-            rule_choices = [rule for rule in rule_choices if rule is not None]
-            weights = [rule_weights[type(rule)] for rule in rule_choices]
-            if len(rule_choices):
-                new_rule = random.choices(rule_choices, weights=weights)[0]
-                # Decrease weight for this rule type
-                if rule_weights[type(new_rule)] > 1:
-                    rule_weights[type(new_rule)] -= 1
-                rules.append(new_rule)
-                
-                # Remove "this & empty" or "just this" corresponding rule
-                if ALLOW_OBJ_EMPTY_RESEARCH:
-                    if type(object_type) is SpaceObject:
-                        try:
-                            singular_types.remove((object_type, SpaceObject.Empty))
-                        except ValueError:
-                            pass
-                    else:
-                        try:
-                            singular_types.remove(object_type[0])
-                        except ValueError:
-                            pass
+        pair_rules = [rule.generate_rule(board, constraints, [], obj1, obj2) for rule in Research.RELATION_RULES
+                      for (obj1, obj2) in pair_types]
+        pair_rules += [rule.generate_rule(board, constraints, [], obj2, obj1) for rule in Research.RELATION_RULES
+                       for (obj1, obj2) in pair_types]
+        pair_rules = [rule for rule in pair_rules if rule is not None]
+        pair_strengths = [rule.base_strength(board) for rule in pair_rules]
             
-            print(singular_types)
-                                    
-            num_singular_rules += 1
-        
-        # Generate pair rules
-        while len(rules) < num_rules and len(pair_types):
-            object1, object2 = pair_types.pop()
-            # Generate pair rules for both orderings of object 1 and 2
-            rule_choices = [rule.generate_rule(board, constraints, rules, object1, object2) \
-                           for rule in Research.RELATION_RULES]
-            rule_choices.extend([rule.generate_rule(board, constraints, rules, object2, object1) \
-                                for rule in Research.RELATION_RULES])
-            rule_choices = [rule for rule in rule_choices if rule is not None]
+        rules = []
+        while len(rules) < total_singular_rules and len(singular_rules) > 0:
+            i = random.choices(range(len(singular_rules)), k=1, weights=singular_strengths)[0]
+            if singular_rules[i].allowed_rule(board.num_objects(), constraints, rules):
+                rules.append(singular_rules[i])
+            singular_rules.pop(i)
+            singular_strengths.pop(i)
             
-            # Pick one of the rules randomly according to the weightss
-            weights = [rule_weights[type(rule)] for rule in rule_choices]
-            if len(rule_choices):
-                # Decrease the weight for this rule type
-                new_rule = random.choices(rule_choices, weights=weights)[0]
-                if rule_weights[type(new_rule)] > 1:
-                    rule_weights[type(new_rule)] -= 1
-                rules.append(new_rule)
-        
+        while len(rules) < num_rules and len(pair_rules) > 0:
+            i = random.choices(range(len(pair_rules)), k=1, weights=pair_strengths)[0]
+            if pair_rules[i].allowed_rule(board.num_objects(), constraints, rules):
+                rules.append(pair_rules[i])
+            pair_rules.pop(i)
+            pair_strengths.pop(i)
+
         random.shuffle(rules)
         
         # Only return research if we were able to generate enough rules

@@ -2,7 +2,7 @@ import sys
 
 from game_generator import GameGenerator
 
-help_string = "Usage: python upload_games.py [input file name ] [# boards per chunk]"
+help_string = "Usage: python upload_games.py [input file name ] [code length] [# boards per chunk]"
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

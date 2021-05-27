@@ -242,6 +242,7 @@ class Board:
         """
         if not self.num_objs_valid:
             self.num_objs = self._calc_num_objects()
+            self.num_objs_valid = True
         return self.num_objs
         
     @classmethod

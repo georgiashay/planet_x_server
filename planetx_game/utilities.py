@@ -248,3 +248,34 @@ def fill_no_self_touch(obj, num_obj, board):
                         elif board[i-1] is None:
                             j += 1
                     yield board_copy
+     
+    
+def ordered_partitions(n, I=2, memo={}):
+    if n in memo:
+        return memo[(n, I)]
+    elif n < 2:
+        memo[(n, I)] = []
+        return []
+    else:
+        partitions = [(n,)]
+        for i in range(I, n + 1):
+            for p in ordered_partitions(n-i, I):
+                partitions.append((i,) + p)
+
+        memo[(n, I)] = partitions
+        return partitions
+
+def calc_partitions(n, I=2, memo={}):
+    if n in memo:
+        return memo[(n, I)]
+    elif n < 2:
+        memo[(n, I)] = []
+        return []
+    else:
+        partitions = [(n,)]
+        for i in range(I, n//2 + 1):
+            for p in calc_partitions(n-i, i):
+                partitions.append((i,) + p)
+
+        memo[(n, I)] = partitions
+        return partitions

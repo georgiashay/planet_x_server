@@ -5,7 +5,7 @@ from enum import Enum
 from abc import *
 from math import comb, factorial
 
-from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch
+from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch, calc_partitions, ordered_partitions
 from .board import *
 from .board_type import *
 
@@ -129,7 +129,7 @@ class Precision(Enum):
             return "STRICT"
         elif self is Precision.WITHIN:
             return "WITHIN"
-
+        
 class Rule(ABC):
     @abstractmethod
     def is_satisfied(self, board):
@@ -204,6 +204,14 @@ class Rule(ABC):
         """
         pass
     
+    @abstractmethod
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        """
+        Returns true if this rule is allowed to be included in research given
+        a set of constraints and other rules
+        """
+        pass
+        
     @classmethod
     @abstractmethod
     def generate_rule(cls, board, constraints, other_rules, *space_objects):
@@ -215,7 +223,7 @@ class Rule(ABC):
         pass
     
     @abstractmethod
-    def strength(self, board, constraints):
+    def real_strength(self, board, constraints):
         """
         Returns a numerical value 0-1 representing the strength of the rule based on 
         what combinations of object positions are eliminated. For a RelationRule, this
@@ -225,7 +233,7 @@ class Rule(ABC):
         pass
             
     @abstractmethod
-    def approx_strength(self, board):
+    def base_strength(self, board):
         """
         Returns a numerical value 0-1 representing the strength of the rule based on 
         what combinations of object positions are eliminated. For a RelationRule, this
@@ -323,8 +331,7 @@ class RelationRule(Rule):
         this rule must eliminate at least data.minimum sectors, and if possible 
         should eliminate data.goal sectors.
         """
-        pass
-    
+        pass    
     
     @abstractmethod
     def positive_positions(self, board):
@@ -334,12 +341,13 @@ class RelationRule(Rule):
         qualifier was EVERY
         """
         pass
-    
-    def strength(self, board, constraints):
+        
+    def real_strength(self, board, constraints):
         relevant_constraints = [constraint for constraint in constraints if 
                                 (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object1)
                                 or (isinstance(constraint, RelationRule) and 
                                     set(constraint.space_objects()) == set(self.space_objects()))]
+                
         
         base_board = Board([obj if obj is self.space_object2 else None for obj in board])
         boards = [base_board]
@@ -349,13 +357,39 @@ class RelationRule(Rule):
                 next_boards.extend(constraint.fill_board(b, board.num_objects()))
             boards = next_boards
             
+        next_boards = []
+        for b in boards:
+            # Collect remaining objects
+            try:
+                new_num_obj1 = b.num_objects()[self.space_object1]
+            except KeyError:
+                new_num_obj1 = 0 
+            num_obj1 = board.num_objects()[self.space_object1] - new_num_obj1
+            num_none = len(board) - board.num_objects()[self.space_object1] - board.num_objects()[self.space_object2]
+            # Create all permutations of remaining objects to put in the board
+            perms = permutations_multi({self.space_object1: num_obj1, None: num_none})
+
+            for perm in perms:
+                board_copy = b.copy()
+                j = 0
+                # Fill in board with this permutation of board objects
+                for k, obj in enumerate(b):
+                    if b[k] is None:
+                        board_copy[k] = perm[j]
+                        j += 1
+                next_boards.append(board_copy)
+        boards = next_boards
+            
         num_total_combos = len(boards)
         valid_boards = [b for b in boards if self.is_satisfied(b)]
         num_valid_combos = len(valid_boards)
         
+        if num_total_combos == 1:
+            return 0
+        
         return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
     
-    def approx_strength(self, board):
+    def base_strength(self, board):
         num_object1 = board.num_objects()[self.space_object1]
         num_object2 = board.num_objects()[self.space_object2]
         
@@ -363,7 +397,7 @@ class RelationRule(Rule):
         num_positive_positions = len(self.positive_positions(board))
                 
         total_combos = comb(num_positions, num_object1)
-
+        
         if self.qualifier is RuleQualifier.NONE:
             valid_combos = comb(num_positions - num_positive_positions, num_object1)
             invalid_combos = total_combos - valid_combos
@@ -376,12 +410,11 @@ class RelationRule(Rule):
             invalid_combos = total_combos - valid_combos
             return invalid_combos/(total_combos - 1)
         
-    
 class SelfRule(Rule):
     def space_objects(self):
         return [self.space_object]
     
-    def strength(self, board, constraints):
+    def real_strength(self, board, constraints):
         relevant_constraints = [constraint for constraint in constraints if 
                                 (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object)]
         
@@ -393,9 +426,35 @@ class SelfRule(Rule):
                 next_boards.extend(constraint.fill_board(b, board.num_objects()))
             boards = next_boards
             
+        next_boards = []
+        for b in boards:
+            # Collect remaining objects
+            try:
+                new_num_obj = b.num_objects()[self.space_object]
+            except KeyError:
+                new_num_obj = 0 
+            num_obj = board.num_objects()[self.space_object] - new_num_obj
+            num_none = len(board) - board.num_objects()[self.space_object]
+            # Create all permutations of remaining objects to put in the board
+            perms = permutations_multi({self.space_object: num_obj, None: num_none})
+
+            for perm in perms:
+                board_copy = b.copy()
+                j = 0
+                # Fill in board with this permutation of board objects
+                for k, obj in enumerate(b):
+                    if b[k] is None:
+                        board_copy[k] = perm[j]
+                        j += 1
+                next_boards.append(board_copy)
+        boards = next_boards 
+        
         num_total_combos = len(boards)
         valid_boards = [b for b in boards if self.is_satisfied(b)]
         num_valid_combos = len(valid_boards)
+        
+        if num_total_combos == 1:
+            return 0
         
         return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
         
@@ -570,6 +629,62 @@ class AdjacentRule(RelationRule):
     
     def adds(self):
         return [ self.space_object1, self.space_object2 ]
+     
+    
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        num_object1 = num_objects[self.space_object1]
+        num_object2 = num_objects[self.space_object2]
+        
+        prev_rules = constraints + other_rules
+        num_spots_uncovered = 2 * num_object1
+        has_none_rule = False
+        
+        for rule in constraints:
+            if isinstance(rule, AdjacentRule) and \
+            { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                return False
+            
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and \
+            { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                return False
+            if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object1 or \
+            rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object1 \
+            and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            
+        for rule in prev_rules:
+            if isinstance(rule, AdjacentRule) and rule.space_object1 == self.space_object1:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_object1
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, AdjacentRule) and rule.space_object2 == self.space_object1: 
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= (num_objects[rule.space_object2] + 1) // 2
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object1:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_object1
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 2
+                    
+        if num_spots_uncovered <= 0:
+            return False
+            
+        every_allowed = (num_spots_uncovered > num_object1) or (not has_none_rule)
+        at_least_one_allowed = (num_spots_uncovered > 1) or (not has_none_rule)
+       
+        if not every_allowed and self.qualifier is RuleQualifier.EVERY:
+            return False
+        
+        if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return False
+        
+        return True
     
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object1, space_object2):
@@ -794,7 +909,7 @@ class OppositeRule(RelationRule):
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
             return len(opposite_idxs) > 0
         else:
-            if self.space_object in board.num_objects():
+            if self.space_object1 in board.num_objects():
                 num_obj = board.num_objects()[self.space_object1]
             else:
                 num_obj = 0
@@ -901,6 +1016,61 @@ class OppositeRule(RelationRule):
     
     def adds(self):
         return [ self.space_object1, self.space_object2 ]
+    
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        num_object1 = num_objects[self.space_object1]
+        num_object2 = num_objects[self.space_object2]
+        
+        prev_rules = constraints + other_rules
+        num_spots_uncovered = num_object1
+        has_none_rule = False
+        
+        for rule in constraints:
+            if isinstance(rule, OppositeRule) and \
+            { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                return False
+            
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and \
+            { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                return False
+            if isinstance(rule, OppositeRule) and (rule.space_object1 == self.space_object1 or \
+            rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            elif isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object1 \
+            and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            
+        for rule in prev_rules:
+            if isinstance(rule, OppositeRule) and rule.space_object1 == self.space_object1:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_object1
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, OppositeRule) and rule.space_object2 == self.space_object1: 
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_objects[rule.space_object2]
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object1:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_object1
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 2      
+        
+        if num_spots_uncovered <= 0:
+            return False
+            
+        every_allowed = not has_none_rule
+        at_least_one_allowed = (num_spots_uncovered > 1) or (not has_none_rule)
+            
+        if not every_allowed and self.qualifier is RuleQualifier.EVERY:
+            return False
+        
+        if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return False
+        
+        return True
     
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object1, space_object2):
@@ -1172,12 +1342,12 @@ class WithinRule(RelationRule):
         countdown = 0
         within_indices = set()
         for i in range(-self.num_sectors, len(board)):
-            if board[i] is self.space_object1:
-                if countdown > 0 and prev[0] is self.space_object2:
+            if board[i] is self.space_object2:
+                if countdown > 0 and prev[0] is self.space_object1:
                     within_indices.add(i % len(board))
                 prev = board[i], i
                 countdown = self.num_sectors
-            elif board[i] is self.space_object2:
+            elif board[i] is self.space_object1:
                 if countdown > 0 and prev[1] is not None:
                     within_indices.add(prev[1] % len(board))
                 prev = board[i], i
@@ -1194,7 +1364,7 @@ class WithinRule(RelationRule):
             if self.qualifier is RuleQualifier.AT_LEAST_ONE:
                 return num_within > 0
             else:
-                if self.space_object in board.num_objects():
+                if self.space_object1 in board.num_objects():
                     num_obj = board.num_objects()[self.space_object1]
                 else:
                     num_obj = 0
@@ -1368,6 +1538,33 @@ class WithinRule(RelationRule):
                 
         return max_run
     
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        min_none = 2
+        max_every = sum(num_objects.values())
+        
+        for constraint in constraints:
+            if isinstance(constraint, WithinRule):
+                if constraint.qualifier is RuleQualifier.NONE and \
+                { self.space_object1, self.space_object2 } == { constraint.space_object1, constraint.space_object2 }:
+                    if constraint.num_sectors + 1 > min_none:
+                        min_none = constraint.num_sectors + 1
+                elif constraint.qualifier is RuleQualifier.EVERY and \
+                { self.space_object1, self.space_object2 } == { constraint.space_object1, constraint.space_object2 }:
+                    if constraint.num_sectors - 1 < max_every:
+                        max_every = constraint.num_sectors - 1
+        
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and \
+                { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                    return False
+
+        if self.qualifier is RuleQualifier.EVERY:
+            return self.num_sectors <= max_every
+        elif self.qualifier is RuleQualifier.NONE:
+            return self.num_sectors >= min_none
+        else:
+            return False
+    
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object1, space_object2):
         min_none = 2
@@ -1381,7 +1578,7 @@ class WithinRule(RelationRule):
                     if constraint.num_sectors + 1 > min_none:
                         min_none = constraint.num_sectors + 1
                 elif constraint.qualifier is RuleQualifier.EVERY and \
-                (space_object1, space_object2) == (constraint.space_object1, constraint.space_object2):
+                { space_object1, space_object2 } == { constraint.space_object1, constraint.space_object2 }:
                     if constraint.num_sectors - 1 < max_every:
                         max_every = constraint.num_sectors - 1
         
@@ -1760,6 +1957,58 @@ class AdjacentSelfRule(SelfRule):
     def adds(self):
         return [ self.space_object ]
     
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        prev_rules = constraints + other_rules
+        num_obj = num_objects[self.space_object]
+        num_spots_uncovered = 2 * num_obj
+        has_none_rule = False
+
+        for rule in constraints:
+            if isinstance(rule, AdjacentSelfRule) and self.space_object == rule.space_object:
+                return False
+            elif isinstance(rule, SectorsRule) and rule.space_object == self.space_object:
+                return False
+            
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
+            rule.space_object2 == SpaceObject.Empty:
+                return False
+            elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
+                return False
+            if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object or \
+            rule.space_object2 == self.space_object) and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object \
+            and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            
+        for rule in prev_rules:
+            if isinstance(rule, AdjacentRule) and rule.space_object1 == self.space_object:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_obj
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, AdjacentRule) and rule.space_object2 == self.space_object: 
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= (num_objects[rule.space_object2] + 1) // 2
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_obj
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 2    
+        
+        if num_spots_uncovered <= 0:
+            return False
+        
+        at_least_one_allowed = (num_spots_uncovered > 2) or (not has_none_rule)
+        
+        if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return False
+       
+        return True
+    
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object):
         # Some constraints already limit this significantly and would be redundant
@@ -1837,22 +2086,6 @@ class AdjacentSelfRule(SelfRule):
         # Choose a random rule
         qualifier = random.choice(qualifier_options)
         return AdjacentSelfRule(space_object, qualifier)
-    
-    @staticmethod
-    def _together_partitions(n, I=2, memo={}):
-        if n in memo:
-            return memo[(n, I)]
-        elif n < 2:
-            memo[(n, I)] = []
-            return []
-        else:
-            partitions = [(n,)]
-            for i in range(I, n//2 + 1):
-                for p in AdjacentSelfRule._together_partitions(n-i, i):
-                    partitions.append((i,) + p)
-               
-            memo[(n, I)] = partitions
-            return partitions
         
     @staticmethod
     def _repeats(partition):
@@ -1869,7 +2102,45 @@ class AdjacentSelfRule(SelfRule):
             
         return repeats
     
-    def approx_strength(self, board):
+    def base_factor(self, board):
+        num_object = board.num_objects()[self.space_object]
+        board_size = len(board)
+        
+        num_total_combos = comb(board_size, num_object)
+                
+        if self.qualifier is RuleQualifier.EVERY:
+            num_positive_combos = 0
+            for partition in calc_partitions(num_object, 2):
+                repeats = AdjacentSelfRule._repeats(partition)
+                combos = board_size
+                spots_left = board_size - num_object - 1
+                if spots_left >= len(partition) - 1:
+                    combos *= int(factorial(spots_left)/factorial(spots_left - len(partition) + 1))
+                else:
+                    combos = 0
+                combos //= repeats
+                num_positive_combos += combos
+                
+            return num_positive_combos/num_total_combos
+        else:
+            if (board_size < 2 * num_object):
+                return 0
+
+            num_none_combos = board_size
+            spots_left = board_size - num_object - 1
+            if spots_left >= num_object - 1:
+                num_none_combos *= int(factorial(spots_left)/factorial(spots_left - num_object + 1))
+            else:
+                num_none_combos = 0
+                
+            num_none_combos //= factorial(num_object)
+            
+            if self.qualifier is RuleQualifier.NONE:
+                return num_none_combos/num_total_combos
+            elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+                return (num_total_combos - num_none_combos)/num_total_combos
+        
+    def base_strength(self, board):
         num_object = board.num_objects()[self.space_object]
         board_size = len(board)
         
@@ -2086,6 +2357,58 @@ class OppositeSelfRule(SelfRule):
     def adds(self):
         return [ self.space_object ]
     
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        prev_rules = constraints + other_rules
+        num_obj = num_objects[self.space_object]
+        num_spots_uncovered = num_obj
+        has_none_rule = False
+
+        for rule in constraints:
+            if isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object:
+                return False
+            elif isinstance(rule, SectorsRule) and rule.space_object == self.space_object:
+                return False
+            
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
+            rule.space_object2 == SpaceObject.Empty:
+                return False
+            elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
+                return False
+            if isinstance(rule, OppositeRule) and (rule.space_object1 == self.space_object or \
+            rule.space_object2 == self.space_object) and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            elif isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object \
+            and rule.qualifier is RuleQualifier.NONE:
+                has_none_rule = True
+            
+        for rule in prev_rules:
+            if isinstance(rule, OppositeRule) and rule.space_object1 == self.space_object:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_obj
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, OppositeRule) and rule.space_object2 == self.space_object: 
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_objects[rule.space_object2]
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 1
+            elif isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object:
+                if rule.qualifier is RuleQualifier.EVERY:
+                    num_spots_uncovered -= num_obj
+                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
+                    num_spots_uncovered -= 2     
+        
+        if num_spots_uncovered <= 0:
+            return False
+       
+        at_least_one_allowed = (num_spots_uncovered > 2) or (not has_none_rule)
+        
+        if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
+            return False
+        
+        return True
+        
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object):
         # Some constraints already limit this significantly and would be redundant
@@ -2178,7 +2501,37 @@ class OppositeSelfRule(SelfRule):
         qualifier = random.choice(qualifier_options)
         return OppositeSelfRule(space_object, qualifier)
     
-    def approx_strength(self, board):
+    def base_factor(self, board):
+        if len(board) % 2 != 0:
+            return 0
+        
+        num_object = board.num_objects()[self.space_object]
+        half_num = num_object // 2
+        board_size = len(board)
+        half_size = board_size // 2
+        
+        num_total_combos = comb(board_size, num_object)
+            
+        if self.qualifier is RuleQualifier.EVERY:
+            num_valid_combos = comb(half_size, half_num)
+            return num_valid_combos/num_total_combos
+        else:
+            if len(board) < 2 * num_object:
+                return 0
+            
+            num_none_combos = 1
+            sectors_left = board_size
+            for i in range(num_object):
+                num_none_combos *= sectors_left
+                sectors_left -= 2
+            num_none_combos //= int(factorial(num_object))
+            
+            if self.qualifier is RuleQualifier.NONE:
+                return num_none_combos/num_total_combos
+            elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
+                return (num_total_combos - num_none_combos)/num_total_combos
+    
+    def base_strength(self, board):
         if len(board) % 2 != 0:
             return 0
         
@@ -2365,6 +2718,20 @@ class BandRule(SelfRule):
     def adds(self):
         return [ self.space_object ]
     
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        if any(isinstance(constraint, BandRule) and constraint.space_object == self.space_object 
+              for constraint in constraints):
+            return False
+        
+        for rule in other_rules:
+            if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
+            rule.space_object2 == SpaceObject.Empty:
+                return False
+            elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
+                return False
+        
+        return True
+    
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object):
         # Some objects are already constrained to be in bands, don't generate
@@ -2372,7 +2739,7 @@ class BandRule(SelfRule):
         if any(isinstance(constraint, cls) and constraint.space_object == space_object 
               for constraint in constraints):
             return None
-        
+                
         # Must be at least 2 objects to have a band rule
         if board.num_objects()[space_object] == 1:
             return None
@@ -2392,10 +2759,42 @@ class BandRule(SelfRule):
             rand_band = random.randint(band_min, band_max)
             return BandRule(space_object, rand_band, Precision.WITHIN)
      
-    def approx_strength(self, board):
-        num_object = board.num_objects()[self.num_object]
+    def base_factor(self, board):
+        num_object = board.num_objects()[self.space_object]
         # Valid only for band_size < len(board)/2
-        if self.precision is Precision.EXACT:
+        if self.precision is Precision.STRICT:
+            band_locations = len(board)
+            inner_band_combos = comb(self.band_size - 2, num_object - 2)
+            num_positive_combos = band_locations * inner_band_combos
+        elif self.precision is Precision.WITHIN:
+            band_locations = len(board)
+            right_band_combos = comb(self.band_size - 1, num_object - 1)
+            num_positive_combos = band_locations * right_band_combos
+            
+        num_total_combos = comb(len(board), num_object)
+        return num_positive_combos/num_total_combos
+    
+    def factor_both_rules(self, board, rule):
+        if isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object:
+            if rule.qualifier == RuleQualifier.EVERY:
+                num_object = board.num_objects()[self.space_object]
+                empty_spaces = self.band_size - num_object
+                partitions = AdjacentSelfRule._together_partitions(num_object)
+                partitions = [partition for partition in partitions if len(partition) <= empty_spaces + 1]
+            elif rule.qualifier == RuleQualifier.NONE:
+                num_object = board.num_objects()[self.space_object]
+                spaces = self.band_size + 1 - num_object
+                return len(board) * comb(spaces, num_object)/comb(len(board), num_object)
+            elif rule.qualifier == RuleQualifier.AT_LEAST_ONE:
+                num_object = board.num_objects()[self.space_object]
+                spaces = self.band_size + 1 - num_object
+                total_combos = comb(len(board), num_object)
+                return (total_combos - len(board) * comb(spaces, num_object))/total_combos
+                
+    def base_strength(self, board):
+        num_object = board.num_objects()[self.space_object]
+        # Valid only for band_size < len(board)/2
+        if self.precision is Precision.STRICT:
             band_locations = len(board)
             inner_band_combos = comb(self.band_size - 2, num_object - 2)
             num_positive_combos = band_locations * inner_band_combos
@@ -2496,12 +2895,21 @@ class SectorsRule(SelfRule):
     def adds(self):
         return [ self.space_object ]
     
+    def allowed_rule(self, num_objects, constraints, other_rules):
+        return False
+    
     @classmethod
     def generate_rule(cls, board, constraints, other_rules, space_object):
         # Will not generate generic rules of this type
         return None
-     
-    def approx_strength(self, board):
+    
+    def base_factor(self, board):
+        num_object = board.num_objects()[self.space_object]
+        total_combos = comb(len(board), num_object)
+        valid_combos = comb(len(self.positions), num_object)
+        return valid_combos/total_combos
+        
+    def base_strength(self, board):
         num_object = board.num_objects()[self.space_object]
         total_combos = comb(len(board), num_object)
         valid_combos = comb(len(self.positions), num_object)
