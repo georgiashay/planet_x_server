@@ -28,6 +28,7 @@ function _getPoolConnection() {
 }
 
 function _queryPromise(query, values=[]) {
+  // console.log("Pool: " + query);
   return new Promise(function(resolve, reject) {
     pool.query(query, values, function(error, results, fields) {
       if (error) {
@@ -40,6 +41,7 @@ function _queryPromise(query, values=[]) {
 }
 
 function _queryConnectionPromise(connection, query, values=[]) {
+  // console.log("Connection: " + query);
   return new Promise(function(resolve, reject) {
     connection.query(query, values, function(error, results, fields) {
       if (error) {
@@ -476,7 +478,7 @@ const operations = {
     await this.connector.query("INSERT INTO actions(action_type, player_id, turn, resolved) VALUES(?, ?, ?, FALSE);", [actionType, playerID, turn]);
   },
   getCurrentAction: async function(playerID) {
-    const { results } = await this.connector.query("SELECT id, action_type, player_id, turn FROM actions WHERE player_id = ? AND resolved IS FALSE", [playerID]);
+    const { results } = await this.connector.query("SELECT id, action_type, player_id, turn FROM actions WHERE player_id = ? AND resolved IS FALSE FOR UPDATE", [playerID]);
 
     if (results.length == 0) {
       return null;
@@ -531,17 +533,4 @@ for (const funcKey in operations) {
   wrappedOperations[funcKey] = queryWrapper(operations[funcKey]);
 }
 
-async function test() {
-  // const { results } = await _queryPromise("SHOW processlist;");
-  // const { results } = await _queryPromise("KILL 571;");
-  // console.log(results);
-  // console.log("DELETING");
-  // const { results } = await _queryPromise("DELETE FROM games WHERE board_size = 24;");
-  // console.log(results);
-  // const { results } = await _queryPromise("SELECT COUNT(*) FROM games WHERE board_size = 18;");
-  // console.log(results);
-}
-
-test();
-
-module.exports = wrappedOperations;
+module.exports = {...wrappedOperations, Connector};

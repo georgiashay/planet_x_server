@@ -1,6 +1,6 @@
 const { createBroker } = require('pubsub-ws');
 
-const operations = require("./dbOps");
+const { Connector, ...operations } = require("./dbOps");
 const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
@@ -580,14 +580,23 @@ class SessionManager {
     }
   }
 
-  async submitTheories(sessionID, playerID, theories, connector=undefined) {
+  async submitTheories(sessionID, playerID, theories, turn, connector=undefined) {
     console.log("Submit theories");
     console.log(sessionID, playerID);
     console.log(theories);
+    let needClose = false;
+    if (connector == undefined) {
+      connector = new Connector();
+      await connector.startTransaction();
+      needClose = true;
+    }
     const currentAction = await operations.getCurrentAction(playerID, connector);
 
     if (currentAction === null || (currentAction.actionType !== ActionType.THEORY_PHASE &&
-      currentAction.actionType !== ActionType.LAST_ACTION)) {
+      currentAction.actionType !== ActionType.LAST_ACTION) || (currentAction.turn !== turn)) {
+      if (needClose) {
+        connector.rollback();
+      }
       return {
         allowed: false,
         successfulTheories: []
@@ -654,8 +663,11 @@ class SessionManager {
       }
     }
 
-    this.notifySubscribers(session);
+    await this.notifySubscribers(session);
 
+    if (needClose) {
+      connector.commit();
+    }
     return {
       allowed: true,
       successfulTheories
@@ -692,17 +704,26 @@ class SessionManager {
     console.log(sessionID, playerID);
     console.log(turn);
     console.log(sectors);
+    let needClose = false;
+    if (connector == undefined) {
+      connector = new Connector();
+      await connector.startTransaction();
+      needClose = true;
+    }
     const currentAction = await operations.getCurrentAction(playerID, connector);
+
     const actionMatches = currentAction !== null
+      && (currentAction.turn == turn.turnNumber)
       && ((currentAction.actionType === ActionType.PLAYER_TURN)
       || (currentAction.actionType === ActionType.LAST_ACTION
           && turn.turnType === TurnType.LOCATE_PLANET_X));
 
     if (!actionMatches) {
+      if (needClose) {
+        await connector.rollback();
+      }
       return false;
     }
-
-    turn.setTurnNumber(currentAction.turn);
 
     const session = await Session.findByID(sessionID, connector);
 
@@ -711,6 +732,9 @@ class SessionManager {
       const previousTargets = history.filter((turn) => turn.playerID === playerID && turn.turnType === TurnType.TARGET);
       const allowedTargets = SECTOR_TYPES[session.boardLength].numTargets;
       if (previousTargets.length >= allowedTargets) {
+        if (needClose) {
+          await connector.rollback();
+        }
         return false;
       }
     }
@@ -720,7 +744,6 @@ class SessionManager {
     }
 
     await operations.resolveAction(currentAction.actionID, turn, connector);
-
 
     if (currentAction.actionType !== ActionType.LAST_ACTION &&
       turn.turnType === TurnType.LOCATE_PLANET_X && turn.successful) {
@@ -750,7 +773,12 @@ class SessionManager {
       }
     }
 
-    this.notifySubscribers(session);
+    await this.notifySubscribers(session);
+
+    if (needClose) {
+      await connector.commit();
+    }
+
     return true;
   }
 
