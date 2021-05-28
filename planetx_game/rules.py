@@ -1975,6 +1975,7 @@ class AdjacentSelfRule(SelfRule):
                 return False
             elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
                 return False
+            
             if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object or \
             rule.space_object2 == self.space_object) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -1997,7 +1998,10 @@ class AdjacentSelfRule(SelfRule):
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 2    
+                    num_spots_uncovered -= 2   
+            elif isinstance(rule, BandRule) and rule.space_object == self.space_object and \
+            rule.band_size < 2 * num_obj - 1:
+                return False
         
         if num_spots_uncovered <= 0:
             return False
@@ -2046,7 +2050,10 @@ class AdjacentSelfRule(SelfRule):
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 2    
+                    num_spots_uncovered -= 2   
+            elif isinstance(rule, BandRule) and rule.space_object == space_object and \
+            rule.band_size < 2 * num_obj - 1:
+                return None
         
         if num_spots_uncovered <= 0:
             return None
@@ -2362,6 +2369,10 @@ class OppositeSelfRule(SelfRule):
         num_obj = num_objects[self.space_object]
         num_spots_uncovered = num_obj
         has_none_rule = False
+        board_size = sum(num_objects.values())
+        
+        if board_size % 2 != 0:
+            return False
 
         for rule in constraints:
             if isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object:
@@ -2397,7 +2408,10 @@ class OppositeSelfRule(SelfRule):
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 2     
+                    num_spots_uncovered -= 2 
+            elif isinstance(rule, BandRule) and rule.space_object == self.space_object and \
+            rule.band_size <= board_size // 2:
+                return False
         
         if num_spots_uncovered <= 0:
             return False
@@ -2446,7 +2460,10 @@ class OppositeSelfRule(SelfRule):
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 2     
+                    num_spots_uncovered -= 2 
+            elif isinstance(rule, BandRule) and rule.space_object == space_object and \
+            rule.band_size <= len(board) // 2:
+                return None
         
         if num_spots_uncovered <= 0:
             return None
