@@ -648,6 +648,9 @@ class AdjacentRule(RelationRule):
             if isinstance(rule, RelationRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                 return False
+            elif isinstance(rule, SelfRule) and self.space_object2 == SpaceObject.Empty \
+            and rule.space_object == self.space_object1:
+                return False
             if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object1 or \
             rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -1033,6 +1036,9 @@ class OppositeRule(RelationRule):
         for rule in other_rules:
             if isinstance(rule, RelationRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
+                return False
+            elif isinstance(rule, SelfRule) and self.space_object2 == SpaceObject.Empty \
+            and rule.space_object == self.space_object1:
                 return False
             if isinstance(rule, OppositeRule) and (rule.space_object1 == self.space_object1 or \
             rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
@@ -1557,6 +1563,9 @@ class WithinRule(RelationRule):
             if isinstance(rule, RelationRule) and \
                 { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                     return False
+            elif isinstance(rule, SelfRule) and self.space_object2 == SpaceObject.Empty \
+            and rule.space_object == self.space_object1:
+                return False
 
         if self.qualifier is RuleQualifier.EVERY:
             return self.num_sectors <= max_every

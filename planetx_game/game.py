@@ -120,15 +120,6 @@ class StartingInformation:
                 for sector in invalid_sectors:
                     if obj in clue_options[sector]:
                         clue_options[sector].remove(obj)
-              
-        # Get the count of possible elimination clues for each object type
-        object_counts = dict()
-        for sector in clue_options:
-            for obj in clue_options[sector]:
-                if obj in object_counts:
-                    object_counts[obj] += 1
-                else:
-                    object_counts[obj] = 1
                 
         clues = {}
         for equinox in Equinox:
