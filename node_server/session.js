@@ -629,7 +629,7 @@ class SessionManager {
 
     const tokensLeft = Object.assign({}, numObjects);
     for (let i = 0; i < myTheories.length; i++) {
-      tokensLeft[existingTheories[i].spaceObject.initial] -= 1;
+      tokensLeft[myTheories[i].spaceObject.initial] -= 1;
     }
 
     const board = (await session.getGame()).board;
