@@ -38,7 +38,7 @@ app.get("/joinGame/:gameCode/", function(req, res, next) {
 
 app.post("/createSession/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
-  console.log(JSON.stringify({action: "Create Session", sectors: numSectors}));
+  console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors}));
   sessionManager.createSession(numSectors, req.query.name).then(async ({playerID, playerNum, session}) => {
     const gameJson = await session.gameJson();
     const stateJson = await session.stateJson();
@@ -52,7 +52,7 @@ app.post("/createSession/:numSectors/", function(req, res, next) {
 });
 
 app.post("/joinSession/:sessionCode/", function(req, res, next) {
-  console.log(JSON.stringify({action: "Join Session", name: req.query.name, sessionCode: req.params.sessionCode}));
+  console.log(JSON.stringify({level: "info", action: "Join Session", name: req.query.name, sessionCode: req.params.sessionCode}));
   sessionManager.joinSession(req.params.sessionCode, req.query.name).then(async ({playerID, playerNum, session}) => {
     if (session == undefined) {
       res.json({ found: false });
@@ -73,7 +73,7 @@ app.post("/joinSession/:sessionCode/", function(req, res, next) {
 app.get("/reconnectSession/:sessionCode", function(req, res, next) {
   const sessionCode = req.params.sessionCode;
   const playerNum = parseInt(req.query.playerNum);
-  console.log(JSON.stringify({action: "Reconnect Session", sessionCode, playerNum}));
+  console.log(JSON.stringify({level: "info", action: "Reconnect Session", sessionCode, playerNum}));
 
   Session.findByCode(sessionCode).then(async (session) => {
     const gameJson = await session.gameJson();
@@ -101,7 +101,7 @@ app.get("/reconnectSession/:sessionCode", function(req, res, next) {
 app.post("/setColor", function(req, res, next) {
   const playerID = parseInt(req.query.playerID);
   const color = parseInt(req.query.color);
-  console.log(JSON.stringify({action: "Set Color", playerID, color}));
+  console.log(JSON.stringify({level: "info", action: "Set Color", playerID, color}));
   sessionManager.setColor(playerID, color).then((allowed) => {
     res.json({allowed});
   });
@@ -112,7 +112,7 @@ app.post("/castKickVote", function(req, res, next) {
   const playerID = parseInt(req.query.playerID);
   const kickPlayerID = req.body.kickPlayerID;
   const vote = req.body.vote;
-  console.log(JSON.stringify({action: "Cast Kick Vote", sessionID, playerID, kickPlayerID, vote}));
+  console.log(JSON.stringify({level: "info", action: "Cast Kick Vote", sessionID, playerID, kickPlayerID, vote}));
   sessionManager.castKickVote(sessionID, playerID, kickPlayerID, vote).then((allowed) => {
     res.json({allowed});
   });

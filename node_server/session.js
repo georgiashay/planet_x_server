@@ -8,7 +8,7 @@ const { Turn, TurnType, Action, ActionType,
         ConferenceTurn } = require("./sessionObjects");
 
 const log = function(jsonMessage) {
-  console.log(JSON.stringify(jsonMessage));
+  console.log(JSON.stringify(Object.assign({level: "info"}, jsonMessage)));
 }
 
 class Session {
