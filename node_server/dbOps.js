@@ -533,4 +533,11 @@ for (const funcKey in operations) {
   wrappedOperations[funcKey] = queryWrapper(operations[funcKey]);
 }
 
+process.on("SIGINT", function() {
+  console.log("Closing pool...");
+  pool.end(function() {
+    process.exit(0);
+  });
+});
+
 module.exports = {...wrappedOperations, Connector};
