@@ -116,16 +116,17 @@ const Season = {
 const SEASONS = [Season.WINTER, Season.SPRING, Season.SUMMER, Season.AUTUMN];
 
 class SpaceObject {
-  static Empty = new SpaceObject("E", "empty sector", false);
-  static Comet = new SpaceObject("C", "comet", false);
-  static Asteroid = new SpaceObject("A", "asteroid", false);
-  static DwarfPlanet = new SpaceObject("D", "dwarf planet", false);
-  static PlanetX = new SpaceObject("X", "Planet X", true);
-  static GasCloud = new SpaceObject("G", "gas cloud", false);
-  static BlackHole = new SpaceObject("B", "black hole", false);
+  static Empty = new SpaceObject("E", "E", "empty sector", false);
+  static Comet = new SpaceObject("C", "C", "comet", false);
+  static Asteroid = new SpaceObject("A", "A", "asteroid", false);
+  static DwarfPlanet = new SpaceObject("D", "DP", "dwarf planet", false);
+  static PlanetX = new SpaceObject("X", "X", "Planet X", true);
+  static GasCloud = new SpaceObject("G", "GC", "gas cloud", false);
+  static BlackHole = new SpaceObject("B", "BH", "black hole", false);
 
-  constructor(initial, name, unique) {
+  constructor(initial, multiInitial, name, unique) {
     this.initial = initial;
+    this.multiInitial = multiInitial;
     this.name = name;
     this.unique = unique;
 
@@ -258,6 +259,17 @@ class RuleQualifier {
     }
   }
 
+  multiInitialStringForObject(obj, numObject) {
+    switch(this) {
+      case RuleQualifier.NONE:
+        return numObject === 1 ? (obj.multiInitial + " not") : ("No " + obj.multiInitial);
+      case RuleQualifier.AT_LEAST_ONE:
+        return "≥ 1 " + obj.multiInitial;
+      case RuleQualifier.EVERY:
+        return numObject === 1 ? obj.multiInitial : ("Every " + obj.multiInitial);
+    }
+  }
+
   forObject(obj, numObject) {
     if (this == RuleQualifier.NONE) {
       if (numObject == 1) {
@@ -361,6 +373,14 @@ class Rule {
     }
     return objects.map((obj) => obj.initial).join("&");
   }
+
+  multiInitialCategory() {
+    let objects = this.spaceObjects();
+    if (objects[objects.length - 1] === SpaceObject.Empty) {
+      objects = objects.slice(0, objects.length - 1);
+    }
+    return objects.map((obj) => obj.multiInitial).join("&");
+  }
 }
 
 class RelationRule extends Rule {
@@ -412,6 +432,13 @@ class AdjacentRule extends RelationRule {
             + " adj. to " + this.spaceObject2.initial;
   }
 
+  multiInitialText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.multiInitialStringForObject(this.spaceObject1, numObject1)
+            + " adj. to " + this.spaceObject2.multiInitial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -427,8 +454,10 @@ class AdjacentRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText(board)
+      shortText: this.shortText(board),
+      multiInitialText: this.multiInitialText(board)
     }
   }
 }
@@ -456,6 +485,13 @@ class OppositeRule extends RelationRule {
             + " opp. " + this.spaceObject2.initial;
   }
 
+  multiInitialText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.multiInitialStringForObject(this.spaceObject1, numObject1)
+            + " opp. " + this.spaceObject2.multiInitial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -471,8 +507,10 @@ class OppositeRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText(board)
+      shortText: this.shortText(board),
+      multiInitialText: this.multiInitialText(board)
     }
   }
 }
@@ -501,6 +539,13 @@ class WithinRule extends RelationRule {
             + " within " + this.numSectors + " of " + this.spaceObject2.initial;
   }
 
+  multiInitialText(board) {
+    const numObject1 = board.numObjects[this.spaceObject1.initial];
+
+    return this.qualifier.multiInitialStringForObject(this.spaceObject1, numObject1)
+            + " within " + this.numSectors + " of " + this.spaceObject2.multiInitial;
+  }
+
   static parse(s) {
     const spaceObject1 = SpaceObject.parse(s[1]);
     const spaceObject2 = SpaceObject.parse(s[2]);
@@ -518,8 +563,10 @@ class WithinRule extends RelationRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText(board)
+      shortText: this.shortText(board),
+      multiInitialText: this.multiInitialText(board)
     }
   }
 }
@@ -544,6 +591,13 @@ class AdjacentSelfRule extends SelfRule {
             + " adj. to " + this.spaceObject.initial;
   }
 
+  multiInitialText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.multiInitialStringForObject(this.spaceObject, numObject)
+            + " adj. to " + this.spaceObject.multiInitial;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const qualifier = RuleQualifier.parse(s[2]);
@@ -557,8 +611,10 @@ class AdjacentSelfRule extends SelfRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText(board)
+      shortText: this.shortText(board),
+      multiInitialText: this.multiInitialText(board)
     }
   }
 }
@@ -583,6 +639,13 @@ class OppositeSelfRule extends SelfRule {
             + " opp. " + this.spaceObject.initial;
   }
 
+  multiInitialText(board) {
+    const numObject = board.numObjects[this.spaceObject.initial];
+
+    return this.qualifier.multiInitialStringForObject(this.spaceObject, numObject)
+            + " opp. " + this.spaceObject.multiInitialinitial;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const qualifier = RuleQualifier.parse(s[2]);
@@ -596,8 +659,10 @@ class OppositeSelfRule extends SelfRule {
       qualifier: this.qualifier.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText(board)
+      shortText: this.shortText(board),
+      multiInitialText: this.multiInitialText(board)
     }
   }
 }
@@ -619,6 +684,10 @@ class BandRule extends SelfRule {
     return this.spaceObject.initial + " in a band of " + this.precision.shortString() + " " + this.bandSize;
   }
 
+  multiInitialText() {
+    return this.spaceObject.multiInitial + " in a band of " + this.precision.shortString() + " " + this.bandSize;
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const bandSize = parseInt(s.slice(2, s.length-1));
@@ -634,8 +703,10 @@ class BandRule extends SelfRule {
       precision: this.precision.json(),
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(),
+      multiInitialText: this.multiInitialText()
     }
   }
 }
@@ -657,6 +728,10 @@ class SectorsRule extends SelfRule {
     return this.spaceObject.initial + " only in " + this.positions.map((i) => i+1).join(", ");
   }
 
+  multiInitialText() {
+    return this.spaceObject.multiInitial + " only in " + this.positions.map((i) => i+1).join(", ");
+  }
+
   static parse(s) {
     const spaceObject = SpaceObject.parse(s[1]);
     const positions = s.slice(2).map((c) => c.charCodeAt(0) - 65);
@@ -670,8 +745,10 @@ class SectorsRule extends SelfRule {
       allowedSectors: this.positions,
       categoryName: this.categoryName(),
 			shortCategory: this.shortCategory(),
+      multiInitialCategory: this.multiInitialCategory(),
       text: this.text(board),
-      shortText: this.shortText()
+      shortText: this.shortText(),
+      multiInitialText: this.multiInitialText()
     }
   }
 }
