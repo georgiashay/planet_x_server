@@ -38,8 +38,8 @@ app.get("/joinGame/:gameCode/", function(req, res, next) {
 
 app.post("/createSession/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
-  console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors}));
-  sessionManager.createSession(numSectors, req.query.name).then(async ({playerID, playerNum, session}) => {
+  console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors, name: req.body.name }));
+  sessionManager.createSession(numSectors, req.body.name).then(async ({playerID, playerNum, session}) => {
     const gameJson = await session.gameJson();
     const stateJson = await session.stateJson();
     res.json({
@@ -52,8 +52,8 @@ app.post("/createSession/:numSectors/", function(req, res, next) {
 });
 
 app.post("/joinSession/:sessionCode/", function(req, res, next) {
-  console.log(JSON.stringify({level: "info", action: "Join Session", name: req.query.name, sessionCode: req.params.sessionCode}));
-  sessionManager.joinSession(req.params.sessionCode, req.query.name).then(async ({playerID, playerNum, session}) => {
+  console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode}));
+  sessionManager.joinSession(req.params.sessionCode, req.body.name).then(async ({playerID, playerNum, session}) => {
     if (session == undefined) {
       res.json({ found: false });
     } else {
