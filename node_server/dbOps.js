@@ -419,7 +419,7 @@ const operations = {
       SELECT sector FROM theories WHERE progress = 2 AND accurate IS TRUE AND frozen is FALSE AND session_id = ?
       ) AS revealed_sectors
       )
-      ) * (progress != 2))) as move_sectors
+      ) * (1 - (progress = 2) * (frozen = FALSE)))) as move_sectors
       FROM theories group by player_id) theories
       ON players.id = theories.player_id
       WHERE players.session_id = ?;`,
