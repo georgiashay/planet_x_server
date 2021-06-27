@@ -7,10 +7,6 @@ const { Turn, TurnType, Action, ActionType,
         LocateTurn, TargetTurn, TheoryTurn, Score,
         ConferenceTurn } = require("./sessionObjects");
 
-const log = function(jsonMessage) {
-  console.log(JSON.stringify(Object.assign({level: "info"}, jsonMessage)));
-}
-
 class Session {
   static NUM_CODES = 24*8*24*8*24;
 
@@ -429,11 +425,6 @@ class SessionManager {
   }
 
   async startSession(sessionID, playerID, connector=undefined) {
-    log({
-      action: "Start Session",
-      sessionID,
-      playerID
-    });
     const currentAction = await operations.getCurrentAction(playerID, connector);
     if (currentAction === null || currentAction.actionType !== ActionType.START_GAME) {
       return false;
@@ -588,12 +579,6 @@ class SessionManager {
   }
 
   async submitTheories(sessionID, playerID, theories, turn, connector=undefined) {
-    log({
-      action: "Submit Theories",
-      sessionID,
-      playerID,
-      theories: theories.map((t) => t.json())
-    });
     let needClose = false;
     if (connector == undefined) {
       connector = new Connector();
@@ -685,11 +670,6 @@ class SessionManager {
   }
 
   async readConference(sessionID, playerID, connector=undefined) {
-    log({
-      action: "Read Conference",
-      sessionID,
-      playerID
-    });
     const currentAction = await operations.getCurrentAction(playerID, connector);
     if (currentAction === null || currentAction.actionType !== ActionType.CONFERENCE_PHASE) {
       return false;
@@ -715,14 +695,6 @@ class SessionManager {
   }
 
   async makeMove(sessionID, playerID, turn, sectors, connector=undefined) {
-    log({
-      action: "Make Move",
-      turnType: turn.turnType,
-      sessionID,
-      playerID,
-      timeCost: sectors,
-      turn: turn.json()
-    });
     let needClose = false;
     if (connector == undefined) {
       connector = new Connector();

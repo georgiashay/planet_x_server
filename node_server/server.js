@@ -38,25 +38,28 @@ app.get("/joinGame/:gameCode/", function(req, res, next) {
 
 app.post("/createSession/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
-  console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors, name: req.body.name }));
   sessionManager.createSession(numSectors, req.body.name).then(async ({playerID, playerNum, session}) => {
     const gameJson = await session.gameJson();
     const stateJson = await session.stateJson();
+    console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors, name: req.body.name, success: true }));
     res.json({
       playerID,
       playerNum,
       game: gameJson,
       state: stateJson
     });
-  });
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Create Session", sectors: numSectors, name: req.body.name, success: false, error: err.message }));
+  })
 });
 
 app.post("/joinSession/:sessionCode/", function(req, res, next) {
-  console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode}));
   sessionManager.joinSession(req.params.sessionCode, req.body.name).then(async ({playerID, playerNum, session}) => {
     if (session == undefined) {
+      console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode, found: false}));
       res.json({ found: false });
     } else {
+      console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode, found: true}));
       const gameJson = await session.gameJson();
       const stateJson = await session.stateJson();
       res.json({
@@ -67,24 +70,26 @@ app.post("/joinSession/:sessionCode/", function(req, res, next) {
         state: stateJson
       });
     }
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode, error: err.message }));
   });
 });
 
 app.get("/reconnectSession/:sessionCode", function(req, res, next) {
   const sessionCode = req.params.sessionCode;
   const playerNum = parseInt(req.query.playerNum);
-  console.log(JSON.stringify({level: "info", action: "Reconnect Session", sessionCode, playerNum}));
-
   Session.findByCode(sessionCode).then(async (session) => {
     const gameJson = await session.gameJson();
     const stateJson = await session.stateJson();
     const players = await session.getPlayers();
     const myPlayers = players.filter((player) => player.num === playerNum);
     if (myPlayers.length == 0) {
+      console.log(JSON.stringify({level: "info", action: "Reconnect Session", sessionCode, playerNum, found: false}));
       res.json({
         found: false
       });
     } else {
+      console.log(JSON.stringify({level: "info", action: "Reconnect Session", sessionCode, playerNum, found: true}));
       const player = myPlayers[0];
       res.json({
         found: true,
@@ -95,15 +100,19 @@ app.get("/reconnectSession/:sessionCode", function(req, res, next) {
         playerName: player.name
       });
     }
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Reconnect Session", sessionCode, playerNum, error: err.message }));
   });
 });
 
 app.post("/setColor", function(req, res, next) {
   const playerID = parseInt(req.query.playerID);
   const color = parseInt(req.query.color);
-  console.log(JSON.stringify({level: "info", action: "Set Color", playerID, color}));
   sessionManager.setColor(playerID, color).then((allowed) => {
+    console.log(JSON.stringify({level: "info", action: "Set Color", playerID, color, allowed}));
     res.json({allowed});
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Set Color", playerID, color, error: err.message }));
   });
 });
 
@@ -112,9 +121,11 @@ app.post("/castKickVote", function(req, res, next) {
   const playerID = parseInt(req.query.playerID);
   const kickPlayerID = req.body.kickPlayerID;
   const vote = req.body.vote;
-  console.log(JSON.stringify({level: "info", action: "Cast Kick Vote", sessionID, playerID, kickPlayerID, vote}));
   sessionManager.castKickVote(sessionID, playerID, kickPlayerID, vote).then((allowed) => {
+    console.log(JSON.stringify({level: "info", action: "Cast Kick Vote", sessionID, playerID, kickPlayerID, vote, allowed}));
     res.json({allowed});
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Cast Kick Vote", sessionID, playerID, kickPlayerID, vote, error: err.message}));
   });
 });
 
@@ -122,7 +133,10 @@ app.post("/startSession/", function(req, res, next) {
   const sessionID = parseInt(req.query.sessionID);
   const playerID = parseInt(req.query.playerID);
   sessionManager.startSession(sessionID, playerID).then((result) => {
+    console.log(JSON.stringify({level: "info", action: "Start Session", sessionID, playerID, allowed: result }));
     res.json({allowed: result});
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Start Session", sessionID, playerID, error: err.message }));
   });
 });
 
@@ -132,7 +146,10 @@ app.post("/submitTheories/", function(req, res, next) {
   const theories = req.body.theories.map((t) => Theory.fromJson(t));
   const turn = req.body.turn;
   sessionManager.submitTheories(sessionID, playerID, theories, turn).then((result) => {
+    console.log(JSON.stringify({level: "info", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json()), allowed: result.allowed, successfulTheories: result.successfulTheories.map((t) => t.json())}));
     res.json(result);
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json()), error: err.message }));
   });
 });
 
@@ -140,7 +157,10 @@ app.post("/readConference/", function(req, res, next) {
   const sessionID = parseInt(req.query.sessionID);
   const playerID = parseInt(req.query.playerID);
   sessionManager.readConference(sessionID, playerID).then((allowed) => {
+    console.log(JSON.stringify({level: "info", action: "Read Conference", sessionID, playerID, allowed }));
     res.json({ allowed })
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Read Conference", sessionID, playerID, error: err.message }));
   });
 });
 
@@ -155,7 +175,10 @@ app.post("/makeMove/", function(req, res, next) {
   }, req.body);
   const turn = Turn.fromJson(turnData);
   sessionManager.makeMove(sessionID, playerID, turn, sectors).then((allowed) => {
+    console.log(JSON.stringify({level: "info", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(), allowed}));
     res.json({ allowed });
+  }).catch((err) => {
+    console.log(JSON.stringify({level: "error", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(), error: err.message }));
   });
 });
 
