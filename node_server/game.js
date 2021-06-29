@@ -643,7 +643,7 @@ class OppositeSelfRule extends SelfRule {
     const numObject = board.numObjects[this.spaceObject.initial];
 
     return this.qualifier.multiInitialStringForObject(this.spaceObject, numObject)
-            + " opp. " + this.spaceObject.multiInitialinitial;
+            + " opp. " + this.spaceObject.multiInitial;
   }
 
   static parse(s) {
