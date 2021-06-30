@@ -392,6 +392,16 @@ class SessionManager {
     const broker = createBroker(server, (req) => {
       const sessionID = req.url.slice(1);
       return Promise.resolve(sessionID);
+    }, async (playerID) => {
+      // Player connected
+      await operations.setPlayerConnected(playerID, true);
+      const session = await Session.findByPlayerID(playerID);
+      await this.notifySubscribers(session);
+    }, async (playerID) => {
+      // Player disconnected
+      await operations.setPlayerConnected(playerID, false);
+      const session = await Session.findByPlayerID(playerID);
+      await this.notifySubscribers(session);
     });
     this.broker = broker;
   }

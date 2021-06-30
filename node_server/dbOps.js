@@ -324,7 +324,7 @@ const operations = {
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await this.connector.query("SELECT * FROM players WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, !!+row.kicked));
+    return results.map((row) => new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, !!+row.kicked, !!+row.connected));
   },
   getKickVotesForSession: async function(sessionID) {
     const { results } = await this.connector.query("SELECT kick_player, vote_player, vote FROM players INNER JOIN kickvotes ON players.id = kickvotes.kick_player WHERE players.session_id = ?", [sessionID]);
@@ -333,7 +333,7 @@ const operations = {
   getPlayer: async function(playerID) {
     const { results } = await this.connector.query("SELECT * FROM players WHERE id = ?", [playerID]);
     const row = results[0];
-    return new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, row.kicked);
+    return new Player(row.id, row.num, row.name, row.color, row.sector, row.arrival, !!+row.kicked, !!+row.connected);
   },
   newPlayer: async function(sessionCode, name, creator) {
     await this.connector.startTransaction();
@@ -452,6 +452,9 @@ const operations = {
   },
   advancePlayer: async function(playerID, sectors) {
     await this.connector.query("CALL MovePlayer(?, ?)", [playerID, sectors]);
+  },
+  setPlayerConnected: async function(playerID, connected) {
+    await this.connector.query("UPDATE players SET connected = ? WHERE id = ?", [connected, playerID]);
   },
   getCurrentActionsForSession: async function(sessionID) {
     const { results } = await this.connector.query(

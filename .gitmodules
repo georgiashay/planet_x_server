@@ -1,0 +1,3 @@
+[submodule "node_server/dependencies/pubsub-ws"]
+	path = node_server/dependencies/pubsub-ws
+	url = https://github.com/georgiashay/pubsub-ws
