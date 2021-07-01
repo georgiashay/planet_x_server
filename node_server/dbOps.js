@@ -388,8 +388,12 @@ const operations = {
       }
     }
     await this.connector.query("INSERT INTO kickvotes(kick_player, vote_player, vote) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE vote = ?", [kickPlayerID, votePlayerID, kick, kick]);
-    const players = await this.connector.query("SELECT COUNT(*) AS num_players FROM players WHERE session_id = ? AND kicked IS FALSE", [sessionID]);
-    const numPlayers = players.results[0].num_players;
+    const players = await this.connector.query(
+      `SELECT players.id, kickvotes.vote FROM players
+        LEFT OUTER JOIN kickvotes on kickvotes.vote_player = players.id
+        WHERE players.session_id = ? AND (players.connected = TRUE OR (kickvotes.vote != NULL AND kickvotes.kick_player = ?))`,
+        [sessionID, kickPlayerID]);
+    const numPlayers = players.results.length;
     const numVotes = await this.connector.query("SELECT * FROM kickvotes WHERE kick_player = ? AND vote IS TRUE", [kickPlayerID]);
     const kicked = numVotes.results.length >= numPlayers / 2;
     if (kicked) {
