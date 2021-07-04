@@ -182,4 +182,5 @@ app.post("/makeMove/", function(req, res, next) {
   });
 });
 
+console.log(JSON.stringify({level: "info", message: "Starting server..."}));
 server.listen(8000);

@@ -541,7 +541,7 @@ for (const funcKey in operations) {
 }
 
 const cleanupPool = function() {
-  console.log("Closing pool...");
+  console.log(JSON.stringify({level: "info", message: "Closing pool..."}));
   pool.end(function() {
     process.exit(0);
   });
