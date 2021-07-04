@@ -1,4 +1,6 @@
 const mysql = require("mysql");
+const { patchMysqlPool } = require("./poolPatch.js");
+patchMysqlPool(mysql);
 const creds = require("./creds.json");
 
 const { Game, SpaceObject, StartingInformation,
@@ -12,7 +14,8 @@ const pool  = mysql.createPool({
     host     : creds.hostname,
     user     : creds.username,
     password : creds.password,
-    database : creds.database
+    database : creds.database,
+    idleConnectionTimeout : 900000
 });
 
 function _getPoolConnection() {
@@ -28,7 +31,6 @@ function _getPoolConnection() {
 }
 
 function _queryPromise(query, values=[]) {
-  // console.log("Pool: " + query);
   return new Promise(function(resolve, reject) {
     pool.query(query, values, function(error, results, fields) {
       if (error) {
