@@ -182,5 +182,10 @@ app.post("/makeMove/", function(req, res, next) {
   });
 });
 
+app.post("/refreshPushpin/", function(req, res, next) {
+  res.json({hi: "hello"});
+  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin"}));
+});
+
 console.log(JSON.stringify({level: "info", message: "Starting server..."}));
 server.listen(8000);
