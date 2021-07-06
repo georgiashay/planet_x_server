@@ -101,8 +101,9 @@ class StartingInformation:
         Generates a set of starting information given a board and a set of constraints for that board.
         """
         clue_options = {}
+        num_objects = board.num_objects()
         # Do not eliminate empty sectors or Planet X
-        normal_types = [obj for obj in board.num_objects().keys() if obj is not SpaceObject.PlanetX \
+        normal_types = [obj for obj in num_objects.keys() if obj is not SpaceObject.PlanetX \
                        and obj is not SpaceObject.Empty]
         
         # List possible objects to be eliminated in each sector
@@ -120,15 +121,29 @@ class StartingInformation:
                 for sector in invalid_sectors:
                     if obj in clue_options[sector]:
                         clue_options[sector].remove(obj)
-                
+          
+        # The starting information cannot eliminate all but num_objects[obj] sectors where an object could be
+        # The maximum for each type of clue is therefore # possible sectors for obj - 1
+        clues_allowed = { 
+            obj: -1
+            for obj in num_objects.keys() if obj is not SpaceObject.PlanetX \
+            and obj is not SpaceObject.Empty 
+        }
+        
+        for sector in clue_options:
+            for obj in clue_options[sector]:
+                clues_allowed[obj] += 1
+                            
         clues = {}
         for equinox in Equinox:
+            clues_left = clues_allowed.copy()
             clues[equinox] = []
             # Randomly order the sectors for each season
             sectors = random.sample(range(len(board)), len(board))
             for sector in sectors:
+                sector_options = [obj for obj in clue_options[sector] if clues_left[obj] > 0]
                 # If there are no clues left for a sector, continue
-                if len(clue_options[sector]) == 0:
+                if len(sector_options) == 0:
                     continue
                 
                 # Stop when there are enough clues
@@ -136,9 +151,10 @@ class StartingInformation:
                     break
 
                 # Choose a random clue for this sector
-                eliminated_object = random.choice(clue_options[sector])
+                eliminated_object = random.choice(sector_options)
                 clues[equinox].append(EliminationClue(sector, eliminated_object))
-                
+                clues_left[eliminated_object] -= 1
+                               
         return StartingInformation(clues)
     
     def __str__(self):

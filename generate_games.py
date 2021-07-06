@@ -17,9 +17,10 @@ if __name__ == "__main__":
             input_filename = sys.argv[2]
             output_filename = sys.argv[3]
             chunk_size = int(sys.argv[4])
-            
-            GameGenerator.generate_games(board_type, input_filename, output_filename, chunk_size=chunk_size)
         except Exception as e:
             print(e)
             print(help_string)
+        else:
+            GameGenerator.generate_games(board_type, input_filename, output_filename, chunk_size=chunk_size)
+
 
