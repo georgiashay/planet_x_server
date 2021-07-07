@@ -17,7 +17,7 @@ function patchMysqlPool(mysql) {
 
           clearTimeout(connection.__idleTimeout);
           connection.__idleTimeout = setTimeout(() => {
-						console.log({level: "info", message: "Purging pool connection with threadId " + connection.threadId});
+						console.log(JSON.stringify({level: "info", message: "Purging pool connection with threadId " + connection.threadId}));
             pool._purgeConnection(connection);
           }, config.idleConnectionTimeout);
 
