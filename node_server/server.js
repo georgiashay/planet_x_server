@@ -11,6 +11,7 @@ const { Turn, Theory } = require("./sessionObjects");
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.set("trust proxy", true);
 
 const server = http.createServer({}, app);
 const sessionManager = new SessionManager(server);
@@ -184,7 +185,7 @@ app.post("/makeMove/", function(req, res, next) {
 
 app.post("/refreshPushpin/", function(req, res, next) {
   res.json({hi: "hello"});
-  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin"}));
+  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin from " + req.ip}));
 });
 
 console.log(JSON.stringify({level: "info", message: "Starting server..."}));
