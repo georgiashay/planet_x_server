@@ -185,7 +185,7 @@ app.post("/makeMove/", function(req, res, next) {
 
 app.post("/refreshPushpin/", function(req, res, next) {
   res.json({hi: "hello"});
-  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin from " + req.ip}));
+  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin ips: " + JSON.stringify(req.body) }));
 });
 
 console.log(JSON.stringify({level: "info", message: "Starting server..."}));
