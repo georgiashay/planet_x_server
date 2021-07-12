@@ -3,6 +3,7 @@ const { createBroker } = require('pubsub-ws');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const axios = require('axios');
 
 const operations = require('./dbOps');
 const { Session, SessionManager } = require("./session");
@@ -15,6 +16,26 @@ app.set("trust proxy", true);
 
 const server = http.createServer({}, app);
 const sessionManager = new SessionManager(server);
+
+let IS_PROD;
+if (process.env.LANDSCAPE === "PRODUCTION") {
+  IS_PROD = true;
+} else {
+  IS_PROD = false;
+}
+
+console.log(JSON.stringify({level: "info", message: "Production: " + IS_PROD}));
+
+let pushpinIPs;
+
+if (IS_PROD) {
+  axios.get("http://pytest.pytest/pushpinIPs").then((response) => {
+    pushpinIPs = response.data.ips;
+    console.log(JSON.stringify({level: "info", message: "pushpin IPs: " + pushpinIPs}));
+  });
+} else {
+  pushpinIPs = ["localhost:7999"];
+}
 
 app.get("/createGame/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
@@ -184,8 +205,9 @@ app.post("/makeMove/", function(req, res, next) {
 });
 
 app.post("/refreshPushpin/", function(req, res, next) {
-  res.json({hi: "hello"});
-  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin ips: " + JSON.stringify(req.body) }));
+  res.json({});
+  pushpinIPs = req.body.ips;
+  console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin ips: " + pushpinIPs }));
 });
 
 console.log(JSON.stringify({level: "info", message: "Starting server..."}));

@@ -8,6 +8,8 @@ RUN cd dependencies/pubsub-ws && npm install && npm run build
 
 RUN cd /usr/src/app && npm install
 
+ENV LANDSCAPE=PRODUCTION
+
 CMD [ "node", "server.js" ]
 
 EXPOSE 8000
