@@ -4,38 +4,83 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const axios = require('axios');
+const { encodeWebSocketEvents, decodeWebSocketEvents, WebSocketContext, Publisher } = require('@fanoutio/grip');
 
 const operations = require('./dbOps');
 const { Session, SessionManager } = require("./session");
 const { Turn, Theory } = require("./sessionObjects");
 
+const websocketEventParser = async function(req, res, next) {
+  if(req.is("application/websocket-events")) {
+    let cid = req.headers['connection-id'];
+    if (Array.isArray(cid)) {
+      cid = cid[0];
+    }
+
+    const inEventsEncoded = await new Promise(resolve => {
+      let body = '';
+      req.on('data', function (chunk) {
+        body += chunk;
+      });
+      req.on('end', function() {
+        resolve(body);
+      });
+    });
+
+    const inEvents = decodeWebSocketEvents(inEventsEncoded);
+    const wsContext = new WebSocketContext(cid, {}, inEvents);
+    req.wsContext = wsContext;
+    next();
+  } else {
+    next();
+  }
+}
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use(websocketEventParser);
+
 app.set("trust proxy", true);
 
-const server = http.createServer({}, app);
-const sessionManager = new SessionManager(server);
-
-let IS_PROD;
-if (process.env.LANDSCAPE === "PRODUCTION") {
-  IS_PROD = true;
-} else {
-  IS_PROD = false;
-}
-
-console.log(JSON.stringify({level: "info", message: "Production: " + IS_PROD}));
-
 let pushpinIPs;
+const server = http.createServer({}, app);
+const sessionManager = new SessionManager();
 
-if (IS_PROD) {
-  axios.get("http://pytest.pytest/pushpinIPs").then((response) => {
-    pushpinIPs = response.data.ips;
-    console.log(JSON.stringify({level: "info", message: "pushpin IPs: " + pushpinIPs}));
+const refreshPublisher = function() {
+  const config = pushpinIPs.map((ip) => {
+    return {
+      'control_uri': 'http://' + ip + ":5561"
+    }
   });
-} else {
-  pushpinIPs = ["localhost:7999"];
+  const publisher = new Publisher(config);
+  sessionManager.setPublisher(publisher);
 }
+
+const setup = async function() {
+  let IS_PROD;
+  if (process.env.LANDSCAPE === "PRODUCTION") {
+    IS_PROD = true;
+  } else {
+    IS_PROD = false;
+  }
+
+  console.log(JSON.stringify({level: "info", message: "Production: " + IS_PROD}));
+
+  if (IS_PROD) {
+    axios.get("http://pytest.pytest/pushpinIPs").then((response) => {
+      pushpinIPs = response.data.ips;
+      refreshPublisher();
+      console.log(JSON.stringify({level: "info", message: "pushpin IPs: " + pushpinIPs}));
+      return Promise.resolve();
+    });
+  } else {
+    pushpinIPs = ["localhost"];
+    refreshPublisher();
+    return Promise.resolve();
+  }
+}
+
 
 app.get("/createGame/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
@@ -207,8 +252,27 @@ app.post("/makeMove/", function(req, res, next) {
 app.post("/refreshPushpin/", function(req, res, next) {
   res.json({});
   pushpinIPs = req.body.ips;
+  refreshPublisher();
   console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin ips: " + pushpinIPs }));
 });
 
-console.log(JSON.stringify({level: "info", message: "Starting server..."}));
-server.listen(8000);
+app.post("/listenSession/:sessionID", async function(req, res, next) {
+  const wsContext = req.wsContext;
+  if (wsContext.isOpening()) {
+    console.log(JSON.stringify({level: "info", message: "Received listen request for session " + req.params.sessionID }));
+    wsContext.accept();
+    wsContext.subscribe(req.params.sessionID);
+
+    const outEvents = wsContext.getOutgoingEvents();
+    const outEventsEncoded = encodeWebSocketEvents(outEvents);
+
+    res.writeHead(200, wsContext.toHeaders());
+    res.write(outEventsEncoded);
+    res.end();
+  }
+});
+
+setup().then(() => {
+  console.log(JSON.stringify({level: "info", message: "Starting server..."}));
+  server.listen(8000);
+});

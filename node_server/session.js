@@ -7,6 +7,8 @@ const { Turn, TurnType, Action, ActionType,
         LocateTurn, TargetTurn, TheoryTurn, Score,
         ConferenceTurn } = require("./sessionObjects");
 
+const { WebSocketMessageFormat } = require("@fanoutio/grip");
+
 class Session {
   static NUM_CODES = 24*8*24*8*24;
 
@@ -388,29 +390,15 @@ class Session {
 }
 
 class SessionManager {
-  constructor(server) {
-    const broker = createBroker(server, (req) => {
-      const sessionID = req.url.slice(1);
-      return Promise.resolve(sessionID);
-    }, async (playerID) => {
-      // Player connected
-      await operations.setPlayerConnected(playerID, true);
-      const session = await Session.findByPlayerID(playerID);
-      await this.notifySubscribers(session);
-    }, async (playerID) => {
-      // Player disconnected
-      await operations.setPlayerConnected(playerID, false);
-      const session = await Session.findByPlayerID(playerID);
-      await this.notifySubscribers(session);
-    });
-    this.broker = broker;
+  setPublisher(publisher) {
+    this.publisher = publisher;
   }
 
   async notifySubscribers(session) {
     await session.refresh();
     const j = await session.stateJson();
     const text = JSON.stringify(j);
-    this.broker.publish(session.sessionID.toString(), text);
+    this.publisher.publishFormats(session.sessionID.toString(), new WebSocketMessageFormat(text));
   }
 
   async joinSession(sessionCode, name, connector=undefined) {
