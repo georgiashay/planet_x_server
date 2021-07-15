@@ -269,6 +269,30 @@ app.post("/listenSession/:sessionID", async function(req, res, next) {
     res.writeHead(200, wsContext.toHeaders());
     res.write(outEventsEncoded);
     res.end();
+  } else if (wsContext.inEvents.some((e) => e.type === "TEXT")) {
+    const textEvent = wsContext.inEvents.find((e) => e.type === "TEXT");
+    const playerID = JSON.parse(textEvent.content).id;
+
+    console.log(JSON.stringify({level: "info", message: "Websocket identified for player " + playerID}));
+
+    sessionManager.setPlayerConnected(playerID, true).then(() => {
+      res.writeHead(200, Object.assign(
+        {"Set-Meta-PlayerID": playerID.toString()},
+        wsContext.toHeaders()));
+      res.end();
+    });
+  } else if (wsContext.inEvents.some((e) => e.type === "CLOSE" || e.type === "DISCONNECT")) {
+    const playerID = req.header("Meta-PlayerID");
+
+    console.log(JSON.stringify({level: "info", message: "Websocket closed for player " + playerID}));
+
+    sessionManager.setPlayerConnected(playerID, false).then(() => {
+      res.writeHead(200, wsContext.toHeaders());
+      res.end();
+    });
+  } else {
+    res.writeHead(200, wsContext.toHeaders());
+    res.end();
   }
 });
 

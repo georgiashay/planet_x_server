@@ -401,6 +401,12 @@ class SessionManager {
     this.publisher.publishFormats(session.sessionID.toString(), new WebSocketMessageFormat(text));
   }
 
+  async setPlayerConnected(playerID, connected, connector=undefined) {
+    await operations.setPlayerConnected(playerID, connected, connector);
+    const session = await Session.findByPlayerID(playerID, connector);
+    await this.notifySubscribers(session);
+  }
+
   async joinSession(sessionCode, name, connector=undefined) {
     const session = await Session.findByCode(sessionCode, connector);
 
