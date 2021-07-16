@@ -68,7 +68,7 @@ const setup = async function() {
   console.log(JSON.stringify({level: "info", message: "Production: " + IS_PROD}));
 
   if (IS_PROD) {
-    axios.get("http://pytest.pytest/pushpinIPs").then((response) => {
+    axios.get("http://prouter.prouter/pushpinIPs").then((response) => {
       pushpinIPs = response.data.ips;
       refreshPublisher();
       console.log(JSON.stringify({level: "info", message: "pushpin IPs: " + pushpinIPs}));
