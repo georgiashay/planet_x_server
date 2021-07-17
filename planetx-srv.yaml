@@ -1,13 +1,31 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: planetx-auth
+  namespace: planetx
+spec:
+  encryptedData:
+    PLANET_DATABASE: AgBVK8WVKO8NBBDpfrqToL137JnpfkP4iJLYDh9h9OgD+VyGFiaXj3xUDwfLpQTWDP5xmdnDEA0nvGpazRNKNs4O8gvNCUzZc0UON7XcA4GaHLKQ+JMC3fEhokfsC9UB5og5tbdyOjHr0/dGBjG72lErsjaIoNEiD5xzrGlVI3USXOlsgrvQH5fFXWoITzHLsLtAj0TR35rpFm8i1Gu3Eq4HlLNOgHV1AAxu+3atDENbDBu/+EBmjq6V8Ke1CquZzvP6DM7bfNPza/mL83T/AWHPZ1dPYi4zqOZkD4Nsav5NIpYugFBSpYjTsh99dvhItZN3l8CaFjRANvnWYjdkY0DywaxsqVpRNWX94qCiwgxjVtGloQydvSNGcbiVkZAI4qdRUC9T8P6cgoWlC2F97lj86HpZzfJ0bj0Dksgm1n0m7V5Hu5ytnu7hgoi8USg3fMEmid+6gKWrkDrA90UCA4hweGgS4hVcwSJG3JFPKuP+ga28YMvhlUwFV5NYhq92FB3HHVp8KO/9L20QSU7zR4DwIzadCB4NjDRGPmDxHHEv00umf/qP//gXSXOGWPBP0B8eOYK1iWGmv3tJi/jaUkWw+5bMe5M6I+Z1IZJFt/QhYQlhTtSM19Q80p+MRa2maPvo4TFhQPWF7ld2mB3ttNRB9EFmRT3iNsAlmIA+Y84Qmi1Lemsj53ekq/hfZXL70MqwuX3tZQiGEQ==
+    PLANET_PASSWORD: AgCaZE0Ndpoe/dGeIBWNwrMnCzM2K9mVqivRX3QI/LeRrE48NlGDOOF5gMgkN/0HnP2ov5lv/UUXPl5dDfWOgNQYpEgKaZMuiZTA5h50Mh7P4IyEDMYOb+ccZHBZcL7ezXKveff/m4HIRFEkznIY/jZ4Lkhrx9iKYFzSS8yGyZRVXRF9+Zt/gm5si3rVvtmeJX+CRiDMdAqcCXDfXjhCGGv1MPzWa99Y58hgcy3roCy8d/As93yIeYcA6OeDF/+6BVztKQVnYohVUAtgXKMD57RwelhZmtdwz1l08AzCxfSnljxuWF2wZzNAaw2dECcwCe+HTI3E2FVcnqlQYs+R8qoeZqYiO6VJrnhaoOvuBqPI4+3G3Z8Rd4hHsYwIE6YL/2RbmKKRK+3/IYuueF5STMEfl3uDRtdRzf6JeV2CC9H3YQcLlJBXTg85D4qmKuMVMlTJ6NJbaWK556laQtePABapeFTs6RLjUxiOH1o3XnvjoCqOUm4+16zws77wMNWVP/Qiwzgngn0A81g7kwAGe7elDXeSVd5rVzQ8vl94hyYIvKT1rYCwYQJzR7xIcN2xGOci/YmxO3DWh8P+iwZVFAKvaEGxkEftdu/IueXULx+xVvz2qYZwdy8guZICodt4lz/3YzIIgjmTPbMRWyEChUhS8sLcyKuN7hf0SuZgkOYuSljq2DmoHC0najIQKcuN1bj+UyKaJeYWrNJSQXaAYu8OYg==
+    PLANET_USERNAME: AgB6m2g8mgacFSya+vkRCkMNjS2iVZs868I2/eT1uk+njF2SI/hUm1irw+MeVtgCojMMY0E7EtyAmQ33Bltq1CyGWVOWSgsTU0Ms0wb480QDmrVi/NG2OacW0MWrnSZ+2mB5h67hSlo3m4P+fG3/t1eaPdqzmDwQsQnqmrAw29mhZ4wBAe3eP8tb1iDgCmRvQhhV3tqJllCm5Wcb6jo0965EPjOKWwe4uhavKXAoB6+1AHVW18nbiJ4kHFIE3eP5PF56ge2V3oZfeNn7hEBd6fXhK/9DMrBxYd28AUOmAx0ZzgD8WF14U/3togaSHU9FoQoXfQyxsb5czuoAWCI2rJJr7CZkQDnecshAPYMHCMLYr92FOjugh++d0dwt/s1jKitaScT+p4s6B636GARC+IrcNOWTxR+3ly5o7L1QtpXlURVhrM0hOdsvGvDqXdziX4PkznhzRZJGXkuQFfB15DwFHrO+DPfOMwIJ5dIgnY2OeJkmR6D8MrnbkC4APJ12NBqEpOQDFLF4H/H8u2SW6EbAdRUzcYXU7qy9rTKVA3uBG6bWEj22bFnTAZ3Wq7iVKBhBWe8b9ZFOfpqnkraiC/fpjKGAaq5RRjBso0t+lFwfCjq/og+FBmE4X0hPjm9Bk94aEPnJsGxlqPE6xwV6HCmK6/5DTzgKK7+IsHaZI/zteZozVZ8NDRNGGfRtfEpS1hFzAEzx5QQX7/4j1w==
+    creds.json: AgAs566vouAJBm+ECKWEiNf47q/DZg3RxNldWkEds+NE9gAU33pkJGcHf5yCWZAaa+xdBy0vGaMzcRSHsBYvviYpcCXGczW/lnPXBjHZZ3BQAahReVnMc4qVkrJR5ZYWIkbH6yaqEvVqonA4X5d3UgS/sBeNPMNcPY4WRJkj1V4shcSTtA8tSlG6jWcJxTOFcI40v4NYofJsi4NXZbzGWbCJH3gNe6O7zsLxQJt+N++9ehTQUVsaUwziA34PGJMMQPV/gtcePyn7DVWnr1qTzZwx/T20r7m562OhSAnDlleobay+j0uTVqWWKaZ8TrUrGSug7W0Th1s7V+h//WYD8XBiOVwjWqjv7dOk5DJWP1HuT+QqP9vfCt6GfEQZC9Xm1TKN0+aXjZa0QaxWjD1Yv3e4pyYHs9BqEyTvsgSNcb6G6/mqG+Oy1B2f2Ej5BMkfLMcZ2k1zTb34dRQKC4D/Ytc71urD4fK231UfEWXfR4MkyabiGQTnAsnzcAgiV+1WaMXIB3GjsPBYM+34br/lH9OkwN7u+TErK21ssBQOz2MATxhlN+u7Mro/gKBYHkev56BumERE7ym9drlO+DkQt+dfsgo5SrD+VCYdFzN6lTEQcKV3N2JpAA0IqiyaYu2nfr/fux7tOtczidhW+2VXkRnQ0wxPAAeYrUHCbzqfLuEdIhxzTxPEqu0VasQSQvFCpS6w1XuXbdqKK30yU2cSrxIrwtH2yA/Py+VtiE9tR8BfgblkEWqcaLNlmzFreRSOZcYciwlk5648ehTomcpZv6N0g/4mKYG53noy/rZ6m4h9JL/uMdN9wK5G7Hkxz4yepEN4I1t/KB3WQkuSC8ir2nS+NRLh
+  template:
+    data: null
+    metadata:
+      creationTimestamp: null
+      name: planetx-auth
+      namespace: planetx
+---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
    namespace: planetx
    name: planetx-srv
    labels:
       app: planetx-srv
 spec:
-  serviceName: planetx-srv
-  replicas: 1
+  replicas: 2
   selector:
      matchLabels:
         app: planetx-srv
@@ -16,6 +34,13 @@ spec:
         labels:
            app: planetx-srv
      spec:
+       topologySpreadConstraints:
+       - maxSkew: 1
+         topologyKey: "kubernetes.io/hostname"
+         whenUnsatisfiable: DoNotSchedule
+         labelSelector:
+           matchLabels:
+             app: planetx-srv
        containers:
        - name: planetx-srv
          image: registry.shaytech.net/pxserver:latest
@@ -29,10 +54,52 @@ spec:
        volumes:
        - name: px-cred-volume
          secret:
-           secretName: px-creds-json
+           secretName: planetx-auth
            items:
            - key: creds.json
              path: creds.json
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: planet-clean-sessions
+  namespace: planetx
+spec:
+  schedule: "0 5 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: planet-clean-session-mysql
+            image: mariadb:10.5.9
+            imagePullPolicy: IfNotPresent
+            command: [ "/bin/bash", "-c", "/usr/bin/mysql -u ${PLANET_USERNAME} -h mariadb.mariadb -p${PLANET_PASSWORD} -e 'DELETE FROM sessions WHERE update_time < now() - interval 7 day;' ${PLANET_DATABASE}" ]
+            volumeMounts:
+            - mountPath: /data/backup
+              name: mysql-backup-restore
+            env:
+            - name: PLANET_USERNAME
+              valueFrom:
+                 secretKeyRef:
+                     name: planetx-auth
+                     key: PLANET_USERNAME
+            - name: PLANET_PASSWORD
+              valueFrom:
+                 secretKeyRef:
+                     name: planetx-auth
+                     key: PLANET_PASSWORD
+            - name: PLANET_DATABASE
+              valueFrom:
+                 secretKeyRef:
+                     name: planetx-auth
+                     key: PLANET_DATABASE
+          volumes:
+            - name: mysql-backup-restore
+              hostPath:
+                path: /data/sdata/dbbackups/mariadb/am
+                type: Directory
+          restartPolicy: OnFailure
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -72,6 +139,8 @@ spec:
     metadata:
       labels:
         app: planetx-web
+      annotations:
+        fluentbit.io/parser: 'nginx'
     spec:
       containers:
       - name: nginx
@@ -123,7 +192,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-   namespace: planetx
+   namespace: pushpin
    name: planetx-srv-ingress
    annotations:
       kubernetes.io/ingress.class: "nginx"
@@ -132,6 +201,15 @@ metadata:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
       nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/limit-connections: "10"
+      nginx.ingress.kubernetes.io/limit-rpm: "60"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
 spec:
    tls:
      - hosts:
@@ -144,9 +222,9 @@ spec:
             pathType: Prefix
             backend:
                service:
-                  name: planetx-srv
+                  name: pushpin
                   port:
-                    number: 80
+                    number: 7999
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -156,6 +234,15 @@ metadata:
    annotations:
       kubernetes.io/ingress.class: "nginx"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#      nginx.ingress.kubernetes.io/limit-connections: "10"
+#      nginx.ingress.kubernetes.io/limit-rpm: "300"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
 spec:
    tls:
      - hosts:
