@@ -1,9 +1,10 @@
 class Game {
-  constructor(board, startingInfo, research, conference) {
+  constructor(board, startingInfo, research, conference, version) {
     this.board = board;
     this.startingInfo = startingInfo;
     this.research = research;
     this.conference = conference;
+    this.version = version;
   }
 
   json() {
@@ -11,7 +12,8 @@ class Game {
       board: this.board.json(),
       research: this.research.json(this.board),
       conference: this.conference.json(this.board),
-      startingInformation: this.startingInfo.json()
+      startingInformation: this.startingInfo.json(),
+      version: this.version
     }
   }
 }

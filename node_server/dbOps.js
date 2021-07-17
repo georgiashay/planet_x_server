@@ -178,6 +178,12 @@ const operations = {
          ORDER BY r1.id ASC
          LIMIT 1;`, [numSectors]);
 
+    const versionResults = await this.connector.query(
+      "SELECT * FROM versions WHERE name = \"game\"", []
+    );
+
+    const gameVersion = versionResults.results[0].version;
+
     await this.connector.commit();
 
     if (results.length === 0) {
@@ -194,7 +200,8 @@ const operations = {
       Board.parse(gameRow.board_objects),
       StartingInformation.parse(gameRow.starting_information),
       Research.parse(gameRow.research),
-      Conference.parse(gameRow.conference)
+      Conference.parse(gameRow.conference),
+      gameVersion
     );
 
     return {
@@ -204,6 +211,7 @@ const operations = {
     }
   },
   getGameByID: async function(gameID) {
+    await this.connector.startTransaction();
     const { results } = await this.connector.query("SELECT * FROM games WHERE id = ?", [gameID]);
     if (results.length == 0) {
       return {
@@ -215,11 +223,20 @@ const operations = {
 
     const gameRow = results[0];
 
+    const versionResults = await this.connector.query(
+      "SELECT * FROM versions WHERE name = \"game\"", []
+    );
+
+    const gameVersion = versionResults.results[0].version;
+
+    await this.connector.commit();
+
     const game = new Game(
       Board.parse(gameRow.board_objects),
       StartingInformation.parse(gameRow.starting_information),
       Research.parse(gameRow.research),
-      Conference.parse(gameRow.conference)
+      Conference.parse(gameRow.conference),
+      gameVersion
     );
 
     return {
@@ -229,6 +246,7 @@ const operations = {
     }
   },
   getGameByGameCode: async function(gameCode) {
+    await this.connector.startTransaction();
     const { results } = await this.connector.query("SELECT * from games WHERE game_code = ?", [gameCode]);
     if (results.length == 0) {
       return {
@@ -239,6 +257,14 @@ const operations = {
     }
 
     const gameRow = results[0];
+
+    const versionResults = await this.connector.query(
+      "SELECT * FROM versions WHERE name = \"game\"", []
+    );
+
+    const gameVersion = versionResults.results[0].version;
+
+    await this.connector.commit();
 
     const game = new Game(
       Board.parse(gameRow.board_objects),
