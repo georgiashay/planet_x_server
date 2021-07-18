@@ -1,5 +1,5 @@
 const { Connector, ...operations } = require("./dbOps");
-const { Game, SpaceObject, SECTOR_TYPES } = require("./game");
+const { Game, SectorElement, SECTOR_TYPES } = require("./game");
 const { Turn, TurnType, Action, ActionType,
         Player, Theory, ResearchTurn, SurveyTurn,
         LocateTurn, TargetTurn, TheoryTurn, Score,
@@ -296,7 +296,7 @@ class Session {
         scores[theory.playerID].addFirstPoint();
         theorySectors[theory.sector] = theory.progress;
       }
-      scores[theory.playerID].addPoints(theory.spaceObject.initial);
+      scores[theory.playerID].addPoints(theory.spaceObject.NAME);
     }
 
     for (let i = 0; i < planetXTurns.length; i++) {
@@ -354,12 +354,12 @@ class Session {
     return { nextSector, nextPlayer };
   }
 
-  async gameJson() {
+  async gameJson(theme) {
     const game = await this.getGame();
-    return game.json();
+    return game.json(theme);
   }
 
-  async stateJson() {
+  async stateJson(theme) {
     const final = this.currentAction.actionType === ActionType.END_GAME;
     const [players, kickedPlayers, kickVotes, theories, actions, history, scores] = await Promise.all([
       this.getPlayers(),
@@ -374,10 +374,10 @@ class Session {
       players: players.sort((a, b) => a.num - b.num).map((p) => p.json()),
       kickedPlayers: kickedPlayers.sort((a, b) => a.num - b.num).map((p) => p.json()),
       kickVotes: kickVotes,
-      theories: theories.map((t) => t.json()),
+      theories: theories.map((t) => t.json(theme)),
       actions: actions.map((a) => a.json()),
-      history: history.map((t) => t.json()),
-      scores: scores.map((s) => s.json()),
+      history: history.map((t) => t.json(theme)),
+      scores: scores.map((s) => s.json(theme)),
       firstRotation: this.firstRotation,
       currentSector: this.currentSector,
       currentAction: this.currentAction.json(),
@@ -394,9 +394,12 @@ class SessionManager {
 
   async notifySubscribers(session) {
     await session.refresh();
-    const j = await session.stateJson();
-    const text = JSON.stringify(j);
-    this.publisher.publishFormats(session.sessionID.toString(), new WebSocketMessageFormat(text));
+    const themes = ["space", "ocean", "castle"];
+    for (const theme of themes) {
+      const j = await session.stateJson(theme);
+      const text = JSON.stringify(j);
+      this.publisher.publishFormats(session.sessionID.toString() + "-" + theme, new WebSocketMessageFormat(text));
+    }
   }
 
   async setPlayerConnected(playerID, connected, connector=undefined) {
@@ -626,7 +629,7 @@ class SessionManager {
 
     const tokensLeft = Object.assign({}, numObjects);
     for (let i = 0; i < myTheories.length; i++) {
-      tokensLeft[myTheories[i].spaceObject.initial] -= 1;
+      tokensLeft[myTheories[i].spaceObject.NAME] -= 1;
     }
 
     const board = (await session.getGame()).board;
@@ -636,15 +639,14 @@ class SessionManager {
     for (let i = 0; i < theories.length; i++) {
       const theory = theories[i];
       theory.setAccuracy(board);
-      const hasTokens = tokensLeft[theory.spaceObject.initial] > 0;
+      const hasTokens = tokensLeft[theory.spaceObject.NAME] > 0;
       const notRevealed = !revealedSectors.has(theory.sector);
       const uniqueSector = !successfulTheories.some((t) => t.sector === theory.sector);
-      const uniqueObject = !myTheories.some((t) => t.spaceObject.initial === theory.spaceObject.initial && t.sector === theory.sector);
-
+      const uniqueObject = !myTheories.some((t) => t.spaceObject.NAME === theory.spaceObject.NAME && t.sector === theory.sector);
       if (hasTokens && notRevealed && uniqueSector && uniqueObject) {
-        await operations.createTheory(sessionID, playerID, theory.spaceObject.initial, theory.sector, theory.accurate, theory.turn, connector);
+        await operations.createTheory(sessionID, playerID, theory.spaceObject["space"].initial, theory.sector, theory.accurate, theory.turn, connector);
         successfulTheories.push(theory);
-        tokensLeft[theory.spaceObject.initial] -= 1;
+        tokensLeft[theory.spaceObject.NAME] -= 1;
       }
     }
 
@@ -665,6 +667,7 @@ class SessionManager {
     if (needClose) {
       connector.commit();
     }
+
     return {
       allowed: true,
       successfulTheories
@@ -697,6 +700,10 @@ class SessionManager {
   }
 
   async makeMove(sessionID, playerID, turn, sectors, connector=undefined) {
+    console.log(sessionID);
+    console.log(playerID);
+    console.log(turn);
+    console.log(sectors);
     let needClose = false;
     if (connector == undefined) {
       connector = new Connector();

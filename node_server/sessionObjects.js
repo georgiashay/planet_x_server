@@ -1,4 +1,4 @@
-const { SpaceObject } = require("./game");
+const { SectorElement } = require("./game");
 
 const ActionType = {
   START_GAME: "START_GAME",
@@ -62,11 +62,11 @@ class Turn {
 
   static fromJson(info) {
     switch(info.turnType) {
-      case TurnType.SURVEY: return new SurveyTurn(SpaceObject.parse(info.spaceObject), info.sectors, info.turn, info.playerID, info.time);
+      case TurnType.SURVEY: return new SurveyTurn(SectorElement.parse(info.spaceObject), info.sectors, info.turn, info.playerID, info.time);
       case TurnType.TARGET: return new TargetTurn(info.sector, info.turn, info.playerID, info.time);
       case TurnType.RESEARCH: return new ResearchTurn(info.index, info.turn, info.playerID, info.time);
       case TurnType.CONFERENCE: return new ConferenceTurn(info.index, info.turn, info.playerID, info.time);
-      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SpaceObject.parse(info.leftObject), SpaceObject.parse(info.rightObject), info.successful, info.turn, info.playerID, info.time);
+      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SectorElement.parse(info.leftObject), SectorElement.parse(info.rightObject), info.successful, info.turn, info.playerID, info.time);
     }
   }
 }
@@ -80,20 +80,20 @@ class SurveyTurn extends Turn {
     this.sectors = sectors;
   }
 
-  toString() {
-    return "Survey, " + this.spaceObject.proper() + ", " + this.sectors.map((s) => s+1).join("-");
+  toString(theme) {
+    return "Survey, " + this.spaceObject[theme].proper() + ", " + this.sectors.map((s) => s+1).join("-");
   }
 
   code() {
-    return "S" + this.spaceObject.initial + this.sectors.join(",");
+    return "S" + this.spaceObject.space.initial + this.sectors.join(",");
   }
 
-  json() {
+  json(theme) {
     return {
       turnType: "SURVEY",
-      spaceObject: this.spaceObject.json(),
+      spaceObject: this.spaceObject[theme].json(),
       sectors: this.sectors,
-      text: this.toString(),
+      text: this.toString(theme),
       turn: this.turnNumber,
 			time: this.time,
       playerID: this.playerID
@@ -101,7 +101,7 @@ class SurveyTurn extends Turn {
   }
 
   static parse(s, turnNumber, playerID, turnTime) {
-    const spaceObject = SpaceObject.parse(s[1]);
+    const spaceObject = SectorElement.parse(s[1]);
     const sectors = s.slice(2).split(",").map((sector) => parseInt(sector));
     return new SurveyTurn(spaceObject, sectors, turnNumber, playerID, turnTime);
   }
@@ -222,15 +222,15 @@ class LocateTurn extends Turn {
   }
 
   code() {
-    return "L" + +this.successful + this.leftObject.initial + this.rightObject.initial + this.sector;
+    return "L" + +this.successful + this.leftObject.space.initial + this.rightObject.space.initial + this.sector;
   }
 
-  json() {
+  json(theme) {
     return {
       turnType: "LOCATE_PLANET_X",
       sector: this.sector,
-      leftObject: this.leftObject.json(),
-      rightObject: this.rightObject.json(),
+      leftObject: this.leftObject[theme].json(),
+      rightObject: this.rightObject[theme].json(),
       successful: this.successful,
       text: this.toString(),
       turn: this.turnNumber,
@@ -241,8 +241,8 @@ class LocateTurn extends Turn {
 
   static parse(s, turnNumber, playerID, turnTime) {
     const successful = !!+s[1];
-    const leftObject = SpaceObject.parse(s[2]);
-    const rightObject = SpaceObject.parse(s[3]);
+    const leftObject = SectorElement.parse(s[2]);
+    const rightObject = SectorElement.parse(s[3]);
     const sector = parseInt(s.slice(4));
     return new LocateTurn(sector, leftObject, rightObject, successful, turnNumber, playerID, turnTime);
   }
@@ -261,13 +261,13 @@ class TheoryTurn extends Turn {
   }
 
   code() {
-    return "G" + this.theories.map((theory) => theory.spaceObject.initial + theory.sector).join(",");
+    return "G" + this.theories.map((theory) => theory.spaceObject.space.initial + theory.sector).join(",");
   }
 
-  json() {
+  json(theme) {
     return {
       turnType: "THEORY",
-      theories: this.theories.map((theory) => theory.json()),
+      theories: this.theories.map((theory) => theory.json(theme)),
       text: this.toString(),
       turn: this.turnNumber,
 			time: this.time,
@@ -280,7 +280,7 @@ class TheoryTurn extends Turn {
     let theories = [];
     if (s.length > 1) {
       theories = theoryStrings.map((theoryString) => {
-        const object = SpaceObject.parse(theoryString[0]);
+        const object = SectorElement.parse(theoryString[0]);
         const sector = parseInt(theoryString.slice(1));
         return new Theory(object, sector, playerID);
       });
@@ -348,13 +348,13 @@ class Theory {
     this.turn = turn;
   }
 
-  toString() {
+  toString(theme) {
     return "Theory: Sector " + (this.sector + 1) + " is " +
-            this.spaceObject.one + " " + this.spaceObject.name;
+            this.spaceObject[theme].one + " " + this.spaceObject[theme].name;
   }
 
   code() {
-    return this.spaceObject.initial + this.sector;
+    return this.spaceObject.space.initial + this.sector;
   }
 
   revealed() {
@@ -362,7 +362,7 @@ class Theory {
   }
 
   setAccuracy(board) {
-    const accuracy = board.objects[this.sector].initial === this.spaceObject.initial;
+    const accuracy = board.objects[this.sector].space.initial === this.spaceObject.space.initial;
     this.accurate = accuracy;
   }
 
@@ -370,9 +370,9 @@ class Theory {
     this.turn = turn;
   }
 
-  json(board) {
+  json(theme) {
     return {
-      spaceObject: this.spaceObject.json(),
+      spaceObject: this.spaceObject[theme].json(),
       sector: this.sector,
       progress: this.progress,
       revealed: this.revealed(),
@@ -384,7 +384,7 @@ class Theory {
   }
 
   static fromJson(obj) {
-    return new Theory(SpaceObject.parse(obj.spaceObject), obj.sector);
+    return new Theory(SectorElement.parse(obj.spaceObject), obj.sector);
   }
 }
 
@@ -422,11 +422,21 @@ class Score {
     this.planetXPoints = points;
   }
 
-  json() {
+  objectPointsJson(theme) {
+    const objectPoints = {};
+
+    for (const obj in this.objectPoints) {
+      objectPoints[SectorElement[obj][theme].initial] = this.objectPoints[obj];
+    }
+
+    return objectPoints;
+  }
+
+  json(theme) {
     return {
       first: this.firstPoints,
-      planetX: this.planetXPoints,
-      objects: this.objectPoints,
+      [SectorElement.Goal[theme].initial]: this.planetXPoints,
+      objects: this.objectPointsJson(theme),
       total: this.total(),
       playerID: this.playerID
     }

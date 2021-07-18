@@ -3,7 +3,7 @@ const { patchMysqlPool } = require("./poolPatch.js");
 patchMysqlPool(mysql);
 const creds = require("./creds.json");
 
-const { Game, SpaceObject, StartingInformation,
+const { Game, SectorElement, StartingInformation,
         Research, Conference, Board } = require("./game");
 
 const { Turn, Action, Theory, Player, ActionType, KickVote } = require("./sessionObjects");
@@ -348,7 +348,7 @@ const operations = {
   },
   getTheoriesForSession: async function(sessionID) {
     const { results } = await this.connector.query("SELECT * FROM theories WHERE session_id = ?", [sessionID]);
-    return results.map((row) => new Theory(SpaceObject.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, row.turn, row.id));
+    return results.map((row) => new Theory(SectorElement.parse(row.object), row.sector, !!+row.accurate, row.player_id, row.progress, !!+row.frozen, row.turn, row.id));
   },
   getPlayersForSession: async function(sessionID) {
     const { results } = await this.connector.query("SELECT * FROM players WHERE session_id = ?", [sessionID]);

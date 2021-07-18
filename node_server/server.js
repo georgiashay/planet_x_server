@@ -83,30 +83,33 @@ const setup = async function() {
 
 app.get("/createGame/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
+  const theme = req.body.theme || "space";
   operations.pickGame(numSectors).then(({game, gameCode}) => {
     if (game == undefined) {
       res.json({success: false});
     } else {
-      res.json({success: true, game: game.json(), gameCode});
+      res.json({success: true, game: game.json(theme), gameCode});
     }
   });
 });
 
 app.get("/joinGame/:gameCode/", function(req, res, next) {
+  const theme = req.body.theme || "space";
   operations.getGameByGameCode(req.params.gameCode).then(({game, gameCode}) => {
     if (game == undefined) {
       res.json({found: false});
     } else {
-      res.json({found: true, game: game.json(), gameCode});
+      res.json({found: true, game: game.json(theme), gameCode});
     }
   });
 });
 
 app.post("/createSession/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
+  const theme = req.body.theme || "space";
   sessionManager.createSession(numSectors, req.body.name).then(async ({playerID, playerNum, session}) => {
-    const gameJson = await session.gameJson();
-    const stateJson = await session.stateJson();
+    const gameJson = await session.gameJson(theme);
+    const stateJson = await session.stateJson(theme);
     console.log(JSON.stringify({level: "info", action: "Create Session", sectors: numSectors, name: req.body.name, success: true }));
     res.json({
       playerID,
@@ -120,14 +123,15 @@ app.post("/createSession/:numSectors/", function(req, res, next) {
 });
 
 app.post("/joinSession/:sessionCode/", function(req, res, next) {
+  const theme = req.body.theme || "space";
   sessionManager.joinSession(req.params.sessionCode, req.body.name).then(async ({playerID, playerNum, session}) => {
     if (session == undefined) {
       console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode, found: false}));
       res.json({ found: false });
     } else {
       console.log(JSON.stringify({level: "info", action: "Join Session", name: req.body.name, sessionCode: req.params.sessionCode, found: true}));
-      const gameJson = await session.gameJson();
-      const stateJson = await session.stateJson();
+      const gameJson = await session.gameJson(theme);
+      const stateJson = await session.stateJson(theme);
       res.json({
         found: true,
         playerID,
@@ -144,9 +148,10 @@ app.post("/joinSession/:sessionCode/", function(req, res, next) {
 app.get("/reconnectSession/:sessionCode", function(req, res, next) {
   const sessionCode = req.params.sessionCode;
   const playerNum = parseInt(req.query.playerNum);
+  const theme = req.body.theme || "space";
   Session.findByCode(sessionCode).then(async (session) => {
-    const gameJson = await session.gameJson();
-    const stateJson = await session.stateJson();
+    const gameJson = await session.gameJson(theme);
+    const stateJson = await session.stateJson(theme);
     const players = await session.getPlayers();
     const myPlayers = players.filter((player) => player.num === playerNum);
     if (myPlayers.length == 0) {
@@ -211,11 +216,15 @@ app.post("/submitTheories/", function(req, res, next) {
   const playerID = parseInt(req.query.playerID);
   const theories = req.body.theories.map((t) => Theory.fromJson(t));
   const turn = req.body.turn;
-  sessionManager.submitTheories(sessionID, playerID, theories, turn).then((result) => {
-    console.log(JSON.stringify({level: "info", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json()), allowed: result.allowed, successfulTheories: result.successfulTheories.map((t) => t.json())}));
-    res.json(result);
+  const theme = req.body.theme || "space";
+  sessionManager.submitTheories(sessionID, playerID, theories, turn).then(({ allowed, successfulTheories}) => {
+    console.log(JSON.stringify({level: "info", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json(theme)), allowed: allowed, successfulTheories: successfulTheories.map((t) => t.json(theme))}));
+    res.json({
+      allowed,
+      successfulTheories: successfulTheories.map((t) => t.json(theme))
+    });
   }).catch((err) => {
-    console.log(JSON.stringify({level: "error", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json()), error: err.message }));
+    console.log(JSON.stringify({level: "error", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json(theme)), error: err.message }));
   });
 });
 
@@ -238,13 +247,14 @@ app.post("/makeMove/", function(req, res, next) {
     sessionID: req.query.sessionID,
     playerID: req.query.playerID,
     time: new Date()
-  }, req.body);
+  }, req.body.turn);
+  const theme = req.body.theme || "space";
   const turn = Turn.fromJson(turnData);
   sessionManager.makeMove(sessionID, playerID, turn, sectors).then((allowed) => {
-    console.log(JSON.stringify({level: "info", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(), allowed}));
+    console.log(JSON.stringify({level: "info", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(theme), allowed}));
     res.json({ allowed });
   }).catch((err) => {
-    console.log(JSON.stringify({level: "error", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(), error: err.message }));
+    console.log(JSON.stringify({level: "error", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(theme), error: err.message }));
   });
 });
 
@@ -255,12 +265,13 @@ app.post("/refreshPushpin/", function(req, res, next) {
   console.log(JSON.stringify({level: "info", message: "Received request to refresh pushpin ips: " + pushpinIPs }));
 });
 
-app.post("/listenSession/:sessionID", async function(req, res, next) {
+app.post("/listenSession/:sessionID/:theme?", async function(req, res, next) {
+  const theme = req.params.theme || "space";
   const wsContext = req.wsContext;
   if (wsContext.isOpening()) {
     console.log(JSON.stringify({level: "info", message: "Received listen request for session " + req.params.sessionID }));
     wsContext.accept();
-    wsContext.subscribe(req.params.sessionID);
+    wsContext.subscribe(req.params.sessionID + "-" + theme);
 
     const outEvents = wsContext.getOutgoingEvents();
     const outEventsEncoded = encodeWebSocketEvents(outEvents);
