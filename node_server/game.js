@@ -145,8 +145,8 @@ class SectorElement {
   static Goal = {
     NAME: "Goal",
     "space": new SectorElement("X", "X", "Planet X", true),
-    "ocean": new SectorElement("O", "O", "octopus", true),
-    "castle": new SectorElement("Q", "Q", "queen", true)
+    "ocean": new SectorElement("O", "O", "octopus", false),
+    "castle": new SectorElement("Q", "Q", "queen", false)
   };
   static NeedsSpace = {
     NAME: "NeedsSpace",
@@ -174,21 +174,48 @@ class SectorElement {
     }
   }
 
-  static parse(s) {
-    switch(s) {
-      case "E": return SectorElement.Empty;
-      case "C": return SectorElement.Prime;
-      case "A": return SectorElement.Clustered;
-      case "D": return SectorElement.Banded;
-      case "X": return SectorElement.Goal;
-      case "G": return SectorElement.NeedsSpace;
-      case "B": return SectorElement.Surrounded;
-      case "-": return null;
+  static parse(s, theme="space") {
+    switch(theme) {
+      case "space": switch(s) {
+        case "E": return SectorElement.Empty;
+        case "C": return SectorElement.Prime;
+        case "A": return SectorElement.Clustered;
+        case "D": return SectorElement.Banded;
+        case "X": return SectorElement.Goal;
+        case "G": return SectorElement.NeedsSpace;
+        case "B": return SectorElement.Surrounded;
+        case "-": return null;
+      }
+      case "ocean": switch(s) {
+        case "E": return SectorElement.Empty;
+        case "C": return SectorElement.Prime;
+        case "S": return SectorElement.Clustered;
+        case "T": return SectorElement.Banded;
+        case "O": return SectorElement.Goal;
+        case "D": return SectorElement.NeedsSpace;
+        case "R": return SectorElement.Surrounded;
+        case "-": return null;
+      }
+      case "castle": switch(s) {
+        case "E": return SectorElement.Empty;
+        case "S": return SectorElement.Prime;
+        case "K": return SectorElement.Clustered;
+        case "P": return SectorElement.Banded;
+        case "Q": return SectorElement.Goal;
+        case "J": return SectorElement.NeedsSpace;
+        case "C": return SectorElement.Surrounded;
+        case "-": return null;
+      }
     }
   }
 
   plural() {
-    return this.name + "s";
+    const esEnds = ["s", "ss", "sh", "ch", "x", "z"];
+    if (esEnds.some((end) => this.name.endsWith(end))) {
+      return this.name + "es";
+    } else {
+      return this.name + "s";
+    }
   }
 
   singular() {
@@ -206,7 +233,12 @@ class SectorElement {
   }
 
   properPlural() {
-    return this.proper() + "s";
+    const esEnds = ["s", "ss", "sh", "ch", "x", "z"];
+    if (esEnds.some((end) => this.name.endsWith(end))) {
+      return this.proper() + "es";
+    } else {
+      return this.proper() + "s";
+    }
   }
 
   category() {

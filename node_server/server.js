@@ -83,7 +83,7 @@ const setup = async function() {
 
 app.get("/createGame/:numSectors/", function(req, res, next) {
   const numSectors = parseInt(req.params.numSectors);
-  const theme = req.body.theme || "space";
+  const theme = req.query.theme || "space";
   operations.pickGame(numSectors).then(({game, gameCode}) => {
     if (game == undefined) {
       res.json({success: false});
@@ -94,7 +94,7 @@ app.get("/createGame/:numSectors/", function(req, res, next) {
 });
 
 app.get("/joinGame/:gameCode/", function(req, res, next) {
-  const theme = req.body.theme || "space";
+  const theme = req.query.theme || "space";
   operations.getGameByGameCode(req.params.gameCode).then(({game, gameCode}) => {
     if (game == undefined) {
       res.json({found: false});
@@ -148,7 +148,7 @@ app.post("/joinSession/:sessionCode/", function(req, res, next) {
 app.get("/reconnectSession/:sessionCode", function(req, res, next) {
   const sessionCode = req.params.sessionCode;
   const playerNum = parseInt(req.query.playerNum);
-  const theme = req.body.theme || "space";
+  const theme = req.query.theme || "space";
   Session.findByCode(sessionCode).then(async (session) => {
     const gameJson = await session.gameJson(theme);
     const stateJson = await session.stateJson(theme);
@@ -249,7 +249,7 @@ app.post("/makeMove/", function(req, res, next) {
     time: new Date()
   }, req.body.turn);
   const theme = req.body.theme || "space";
-  const turn = Turn.fromJson(turnData);
+  const turn = Turn.fromJson(turnData, theme);
   sessionManager.makeMove(sessionID, playerID, turn, sectors).then((allowed) => {
     console.log(JSON.stringify({level: "info", action: "Make Move", turnType: turn.turnType, sessionID, playerID, timeCost: sectors, turn: turn.json(theme), allowed}));
     res.json({ allowed });

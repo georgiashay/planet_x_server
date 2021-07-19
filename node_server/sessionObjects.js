@@ -60,13 +60,13 @@ class Turn {
     }
   }
 
-  static fromJson(info) {
+  static fromJson(info, theme="space") {
     switch(info.turnType) {
-      case TurnType.SURVEY: return new SurveyTurn(SectorElement.parse(info.spaceObject), info.sectors, info.turn, info.playerID, info.time);
+      case TurnType.SURVEY: return new SurveyTurn(SectorElement.parse(info.spaceObject, theme), info.sectors, info.turn, info.playerID, info.time);
       case TurnType.TARGET: return new TargetTurn(info.sector, info.turn, info.playerID, info.time);
       case TurnType.RESEARCH: return new ResearchTurn(info.index, info.turn, info.playerID, info.time);
       case TurnType.CONFERENCE: return new ConferenceTurn(info.index, info.turn, info.playerID, info.time);
-      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SectorElement.parse(info.leftObject), SectorElement.parse(info.rightObject), info.successful, info.turn, info.playerID, info.time);
+      case TurnType.LOCATE_PLANET_X: return new LocateTurn(info.sector, SectorElement.parse(info.leftObject, theme), SectorElement.parse(info.rightObject, theme), info.successful, info.turn, info.playerID, info.time);
     }
   }
 }

@@ -700,10 +700,6 @@ class SessionManager {
   }
 
   async makeMove(sessionID, playerID, turn, sectors, connector=undefined) {
-    console.log(sessionID);
-    console.log(playerID);
-    console.log(turn);
-    console.log(sectors);
     let needClose = false;
     if (connector == undefined) {
       connector = new Connector();
