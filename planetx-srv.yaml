@@ -155,7 +155,7 @@ spec:
       volumes:
         - name: webroot
           hostPath:
-            path: /data/sdata/otherwebapps/planetx
+            path: /data/sdata/otherwebapps/searchx/planetx
             type: Directory
         - name: webconfig
           configMap:
@@ -259,3 +259,247 @@ spec:
                 name: planetx-web
                 port:
                    number: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: octopusx-web
+  namespace: planetx
+spec:
+  selector:
+    matchLabels:
+      app: octopusx-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: octopusx-web
+      annotations:
+        fluentbit.io/parser: 'nginx'
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /usr/share/nginx/html
+            name: webroot
+          - mountPath: /etc/nginx/conf.d
+            name: webconfig
+      volumes:
+        - name: webroot
+          hostPath:
+            path: /data/sdata/otherwebapps/searchx/octopusx
+            type: Directory
+        - name: webconfig
+          configMap:
+            name: pxweb-conf
+            items:
+              - key: default.conf
+                path: default.conf
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: octopusx-web
+  namespace: planetx
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: octopusx-web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+   namespace: planetx
+   name: octopusx-web-ingress
+   annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#      nginx.ingress.kubernetes.io/limit-connections: "10"
+#      nginx.ingress.kubernetes.io/limit-rpm: "300"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
+spec:
+   tls:
+     - hosts:
+       - octopusx.shaytech.net
+   rules:
+   - host: octopusx.shaytech.net
+     http:
+       paths:
+         - path: /
+           pathType: Prefix
+           backend:
+             service:
+                name: octopusx-web
+                port:
+                   number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+   namespace: pushpin
+   name: octopusx-srv-ingress
+   annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/limit-connections: "10"
+      nginx.ingress.kubernetes.io/limit-rpm: "60"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
+spec:
+   tls:
+     - hosts:
+       - octopusx.shaytech.net
+   rules:
+   - host: octopusx.shaytech.net
+     http:
+       paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+               service:
+                  name: pushpin
+                  port:
+                    number: 7999
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: castlex-web
+  namespace: planetx
+spec:
+  selector:
+    matchLabels:
+      app: castlex-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: castlex-web
+      annotations:
+        fluentbit.io/parser: 'nginx'
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - mountPath: /usr/share/nginx/html
+            name: webroot
+          - mountPath: /etc/nginx/conf.d
+            name: webconfig
+      volumes:
+        - name: webroot
+          hostPath:
+            path: /data/sdata/otherwebapps/searchx/castlex
+            type: Directory
+        - name: webconfig
+          configMap:
+            name: pxweb-conf
+            items:
+              - key: default.conf
+                path: default.conf
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: castlex-web
+  namespace: planetx
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: castlex-web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+   namespace: planetx
+   name: castlex-web-ingress
+   annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#      nginx.ingress.kubernetes.io/limit-connections: "10"
+#      nginx.ingress.kubernetes.io/limit-rpm: "300"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
+spec:
+   tls:
+     - hosts:
+       - castlex.shaytech.net
+   rules:
+   - host: castlex.shaytech.net
+     http:
+       paths:
+         - path: /
+           pathType: Prefix
+           backend:
+             service:
+                name: castlex-web
+                port:
+                   number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+   namespace: pushpin
+   name: castlex-srv-ingress
+   annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/limit-connections: "10"
+      nginx.ingress.kubernetes.io/limit-rpm: "60"
+      nginx.ingress.kubernetes.io/modsecurity-snippet: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecAuditEngine RelevantOnly
+        SecAuditLogParts ABIJDEFHZ
+        SecAuditLog /var/log/modsec_audit.log
+        Include /etc/nginx/owasp-modsecurity-crs/nginx-modsecurity.conf
+spec:
+   tls:
+     - hosts:
+       - castlex.shaytech.net
+   rules:
+   - host: castlex.shaytech.net
+     http:
+       paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+               service:
+                  name: pushpin
+                  port:
+                    number: 7999
