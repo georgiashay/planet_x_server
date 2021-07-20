@@ -139,7 +139,7 @@ class SectorElement {
   static Banded = {
     NAME: "Banded",
     "space": new SectorElement("D", "DP", "dwarf planet", false),
-    "ocean": new SectorElement("T", "T", "turtle", false),
+    "ocean": new SectorElement("D", "D", "dolphin", false),
     "castle": new SectorElement("P", "P", "prince", false)
   };
   static Goal = {
@@ -151,7 +151,7 @@ class SectorElement {
   static NeedsSpace = {
     NAME: "NeedsSpace",
     "space": new SectorElement("G", "GC", "gas cloud", false),
-    "ocean": new SectorElement("D", "D", "dolphin", false),
+    "ocean": new SectorElement("T", "T", "turtle", false),
     "castle": new SectorElement("J", "J", "jester", false)
   };
   static Surrounded = {
