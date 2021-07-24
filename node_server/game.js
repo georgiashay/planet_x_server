@@ -767,8 +767,8 @@ class BandRule extends SelfRule {
 
   static parse(s) {
     const spaceObject = SectorElement.parse(s[1]);
-    const bandSize = parseInt(s.slice(2, s.length-1));
-    const precision = Precision.parse(s[s.length-1])
+    const precision = Precision.parse(s[2]);
+    const bandSize = parseInt(s.slice(3));
     return new BandRule(spaceObject, bandSize, precision);
   }
 

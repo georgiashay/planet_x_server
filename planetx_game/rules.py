@@ -2986,13 +2986,13 @@ class BandRule(SelfRule):
         return (num_total_combos - num_positive_combos)/(num_total_combos - 1)
     
     def code(self):
-        return "B" + str(self.space_object) + str(self.band_size) + self.precision.code()
+        return "B" + str(self.space_object) + self.precision.code() + str(self.band_size)
     
     @classmethod
     def parse(cls, s):
         space_object = SpaceObject.parse(s[1])
-        band_size = int(s[2])
-        precision = Precision.parse(s[3])
+        precision = Precision.parse(s[2])
+        band_size = int(s[3:])
         return cls(space_object, band_size, precision)
     
     def to_json(self, board):
