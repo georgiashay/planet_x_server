@@ -1,20 +1,26 @@
 def _permutations_multi(lst):
     if len(lst) == 0:
+        # No permutations for empty list 
         return
     elif len(lst) == 1:
+        # One permutation for list of one element
         yield lst
     else:
         for i in range(len(lst)):
+            # Only generate permutations on the first instance of each value
             if i == 0 or lst[i] != lst[i-1]:
                 rest = lst[:i] + lst[i+1:]
+                # Choose this value to be the last value
                 for p in _permutations_multi(rest):
                     yield [lst[i]] + p
 
 def permutations_multi_old(counts):
+    # Construct sorted list of values in counts
     lst = []
     for val in counts:
         for i in range(counts[val]):
             lst.append(val)
+    # Return the permutations
     yield from _permutations_multi(lst)
     
 def memo_counts(f):
@@ -35,12 +41,15 @@ def permutations_multi(counts):
         if counts[obj] > 0:
             obj_choices = True
             
+            # Reduce count by 1 and generate more permutations
             counts[obj] -= 1
+            # Place this value at the end of the list
             for p in permutations_multi(counts):
                 yield [obj] + p
             
             counts[obj] += 1
             
+    # All objects have a count of 0
     if not obj_choices:
         yield []          
         
@@ -53,15 +62,19 @@ def sum_counts(d):
 def _fill_no_touch(prev, counts, holes, no_touch_objs, t=0):
     if len(counts.keys()) == 0:
         if all(holes):
+            # If valid so far and all holes left, fill in Nones for holes
             if len(holes) == 0 or \
             (holes[0][0] == prev or holes[0][0] not in no_touch_objs or prev not in no_touch_objs):
                 yield [None]*len(holes)
         return
     else:
+        # If we're at a hole and valid
         if holes[0] and (holes[0][0] == prev or holes[0][0] not in no_touch_objs or prev not in no_touch_objs):
+            # Add a hole and continue
             for p in _fill_no_touch(holes[0][-1], counts, holes[1:], no_touch_objs, t+1):
                 yield [None] + p
         else:
+            # Loop through each object and check if we're allowed to put it next
             first_objs = list(counts.keys())
             for obj in first_objs:
                 if obj == prev or prev not in no_touch_objs or obj not in no_touch_objs:
@@ -69,6 +82,7 @@ def _fill_no_touch(prev, counts, holes, no_touch_objs, t=0):
                     if counts[obj] == 0:
                         del counts[obj]
                 
+                    # Place object next and continue
                     for p in _fill_no_touch(obj, counts, holes[1:], no_touch_objs, t+1):
                         yield [obj] + p
             
@@ -78,6 +92,8 @@ def _fill_no_touch(prev, counts, holes, no_touch_objs, t=0):
                         counts[obj] = 1
 
 def fill_no_touch(counts, board):
+    # Create list of holes
+    # holes = False if not a hole, [first_obj, last_obj] if it's a run of existing objects (i.e. hole)
     holes = []
     in_hole = False
     for obj in board:
@@ -89,9 +105,11 @@ def fill_no_touch(counts, board):
         else:
             in_hole = True
             holes.append((obj,))
-                        
+      
     num_holes = len([val for val in holes if val != False])
+    # Number of empties to add
     empty = len([obj for obj in board if obj is None]) - sum_counts(counts)
+    # Number of total gaps possible to have
     gaps = num_holes + empty
     
     if len(counts.keys()) > gaps:
@@ -103,12 +121,15 @@ def fill_no_touch(counts, board):
         for obj in list(put_counts.keys()):
             if put_counts[obj] == 0:
                 del put_counts[obj]
+        # Fill without touching
         for p in _fill_no_touch(None, put_counts, holes, counts.keys()):
             first_val = p[0] if holes[0] == False else holes[0][0]
             last_val = p[-1] if holes[-1] == False else holes[-1][-1]
 
+            # Make sure first & last value (which wraparound) are allowed
             if first_val == last_val or first_val not in counts or last_val not in counts:
                 board_copy = board.copy()
+                # Construct board by filling in values
                 j = 0
                 for i in range(len(board_copy)):
                     if board[i] is None:
@@ -119,30 +140,38 @@ def fill_no_touch(counts, board):
                 yield board_copy
                 
 def add_one_no_touch(obj1, obj2, num_obj1, board, start_i=0):
+    # No more object left to add, current board is fine
     if num_obj1 == 0:
         yield board
         return 
     
     for i in range(start_i, len(board)):
+        # Add object at position i if allowed
         if board[i] is None and board[i-1] != obj2 and board[i+1] != obj2:
             board_copy = board.copy()
             board_copy[i] = obj1
+            # Continue adding objects after i
             yield from add_one_no_touch(obj1, obj2, num_obj1 - 1, board_copy, i+1)
 
 def add_two_no_touch(obj1, obj2, num_obj1, num_obj2, board):
+    # Add the object 1's 
     with_obj1 = add_one_no_touch(obj1, obj2, num_obj1, board)
     for b in with_obj1:
+        # Add the object 2's
         yield from add_one_no_touch(obj2, obj1, num_obj2, b)
         
 def add_one_no_self_touch(obj, num_obj, board, start_i=0):
+    # No more object left to add, current board is fine
     if num_obj == 0:
         yield board
         return 
     
     for i in range(start_i, len(board)):
+        # Add object at position i if allowed
         if board[i] is None and board[i-1] != obj and board[i+1] != obj:
             board_copy = board.copy()
             board_copy[i] = obj
+            # Continue adding objects after i
             yield from add_one_no_self_touch(obj, num_obj - 1, board_copy, i+2)
                     
 def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
@@ -153,13 +182,16 @@ def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
     if board[i] != None:
         if board[i] in no_within_objs:
             if board[i] != prev and countdown != 0:
+                # Already violates rule
                 return
+            # Restart countdown, encountered an object in the set again
             new_prev = board[i]
             new_countdown = n
         else:
+            # Moved further from an object, decrease countdown
             new_prev = prev
             new_countdown = countdown - 1
-            
+        # Fill in board where possible starting after this index
         for p in _fill_no_within(new_prev, new_countdown, counts, no_within_objs, board, n, i+1):
             yield [board[i]] + p
         return
@@ -167,6 +199,7 @@ def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
     obj_choices = list(counts.keys())
     for obj in obj_choices:
         restricted_obj = obj in no_within_objs
+        # Check if object is allowed to be placed here
         if obj == prev or not restricted_obj or countdown == 0:
             counts[obj] -= 1
             if counts[obj] == 0:
@@ -179,6 +212,7 @@ def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
                 new_countdown = max(0, countdown - 1)
                 new_prev = prev
                 
+            # Fill in board starting after the index adding this object
             for p in _fill_no_within(new_prev, new_countdown, counts, no_within_objs, board, n, i+1):
                 yield [obj] + p
             
@@ -190,6 +224,7 @@ def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
 def fill_no_within(counts, board, n):
     num_none = len([obj for obj in board if obj is None]) - sum_counts(counts)
     for p in _fill_no_within(None, 0, {**counts, None: num_none}, counts.keys(), board, n, 0):
+        # Ensure the objects aren't too close to each other due to wraparound
         first_i = next(i for i, obj in enumerate(p) if obj in counts)
         last_i = next(i for i in range(len(p) - 1, -1, -1) if p[i] in counts and p[i] != p[first_i])
         diff = first_i + (len(p) - last_i)
@@ -199,23 +234,30 @@ def fill_no_within(counts, board, n):
 def _fill_no_self_touch(prev, holes, obj, num_obj, num_none, t=0):
     if num_obj == 0 and num_none == 0:
         if all(holes):
+            # If there are only holes left and the hole doesn't conflict with the previous object,
+            # add the holes
             if len(holes) == 0 or \
             (holes[0][0] != prev or holes[0][0] != obj or prev != obj):
                 yield [None]*len(holes)
         return
     else:
+        # If there is a hole it doesn't conflict with the previous object, add it
         if holes[0] and (holes[0][0] != prev or holes[0][0] != obj or prev != obj):
             for p in _fill_no_self_touch(holes[0][-1], holes[1:], obj, num_obj, num_none, t+1):
                 yield [None] + p
         else:
+            # If we have objects left and the last thing wasn't this object, we can add it
             if num_obj > 0 and obj != prev:
                 for p in _fill_no_self_touch(obj, holes[1:], obj, num_obj - 1, num_none, t+1):
                     yield [obj] + p
+            # If we have empties left, we can add one
             if num_none > 0:
                 for p in _fill_no_self_touch(None, holes[1:], obj, num_obj, num_none - 1, t+1):
                     yield [None] + p
 
 def fill_no_self_touch(obj, num_obj, board):
+    # Build list of holes
+    # i.e. false if not a "hole" - i.e. run of objects - or [first_obj, last_obj] of run
     holes = []
     in_hole = False
     for o in board:
@@ -229,18 +271,24 @@ def fill_no_self_touch(obj, num_obj, board):
             holes.append((o,))
                         
     num_holes = len([val for val in holes if val != False])
+    # Number of empties to add
     empty = len([o for o in board if o is None]) - num_obj
+    # Total potential number of gaps between objs
     gaps = num_holes + empty
     
     if num_obj > gaps:
         return []
-    else:                     
+    else:
+        # Fill without self-touch (array)
         for p in _fill_no_self_touch(None, holes, obj, num_obj, empty):
+            # Make sure first and last aren't both obj
             if p[0] != p[-1] or p[0] != obj or p[-1] != obj:
+                # Make sure holes at start/end don't make the first and last be both obj
                 if holes[-1] == False or holes[0] != False or p[0] != holes[-1][-1] \
                 or p[0] != obj or holes[-1][-1] != obj:
                     board_copy = board.copy()
                     j = 0
+                    # Fill in board based on results
                     for i in range(len(board_copy)):
                         if board[i] is None:
                             board_copy[i] = p[j]
@@ -259,6 +307,7 @@ def ordered_partitions(n, I=2, memo={}):
     else:
         partitions = [(n,)]
         for i in range(I, n + 1):
+            # Add i to partition
             for p in ordered_partitions(n-i, I):
                 partitions.append((i,) + p)
 
@@ -274,6 +323,7 @@ def calc_partitions(n, I=2, memo={}):
     else:
         partitions = [(n,)]
         for i in range(I, n//2 + 1):
+            # Add i to partition
             for p in calc_partitions(n-i, i):
                 partitions.append((i,) + p)
 
