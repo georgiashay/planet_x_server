@@ -1067,8 +1067,8 @@ class OppositeRule(RelationRule):
         num_spots_uncovered = num_object1
         has_none_rule = False
         
-        num_object1 = board.num_objects()[space_object1]
-        num_object2 = board.num_objects()[space_object2]
+        num_objects[self.space_object1]
+        num_objects[self.space_object2]
         
         # Some are already constrained, don't generate these rules
         prev_rules = constraints + other_rules

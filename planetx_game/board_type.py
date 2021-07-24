@@ -3,6 +3,7 @@ import itertools
 import sys
 import os
 import math
+import tempfile
 
 from .rules import *
 from .board import SpaceObject
@@ -121,6 +122,30 @@ class BoardType:
         
         return constraints
     
+    @classmethod
+    def _chunked_read(cls, board_filename, chunk_size):
+        board_file = open(board_filename, "r")
+        more_boards = True
+        boards = []
+        
+        while more_boards:
+            # Bring in next chunk of boards into memory
+            if len(boards) == 0:
+                while len(boards) < chunk_size:
+                    board_str = board_file.readline().rstrip("\r\n")
+                    if len(board_str) == 0:
+                        more_boards = False
+                        break
+                    else:
+                        boards.append(Board.parse(board_str))
+            
+            for board in boards:
+                yield board
+               
+            boards = []
+            
+        board_file.close()
+        
     def generate_boards_to_file(self, filename, chunk_size=float('inf'), parallel=None):
         """
         Generate all boards of this type by working up, i.e. adding in space objects that 
@@ -149,55 +174,31 @@ class BoardType:
         # ones, that meet the next constraint as well
         boards_file = None
         total_chunks = 1
-        next_boards_file = open("tmp_boards_0.b", "w")
+        next_boards_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
         boards = [Board([None] * self.board_length)]
         last_boards = 1
-        
+ 
         for i, constraint in enumerate(constraints):
             print("Working on constraint " + str(i+1) + "/" + str(len(constraints)) + ": " + str(constraint), flush=True)
-            more_boards = True
-            chunk = 0
             num_boards = 0
             last_update = 0
             
-            # Get more boards from the last boards file (up to chunk_size)
-            while more_boards:
-                if len(boards) == 0:
-                    if i == 0:
-                        # For the first constraint, the boards [Just one blank one] are already provided and not in a file
-                        more_boards = False
-                        break
-                
-                    # Read the boards file line by line and extract boards
-                    while len(boards) < chunk_size:
-                        board_str = boards_file.readline().rstrip("\r\n")
-                        if len(board_str) == 0:
-                            more_boards = False
-                            break
-                        else:
-                            boards.append(Board.parse(board_str))
+            # Create new boards from each previous board
+            for j, board in enumerate(boards):
+                # Create all possible boards from this previous board that meet 
+                # the current constraint
+                new_boards = constraint.fill_board(board, self.num_objects)
+                for new_board in new_boards:
+                    num_boards += 1
+                    next_boards_file.write(str(new_board) + "\n")
 
-                # Create new boards from each previous board
-                #print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
-                for j, board in enumerate(boards):
-                    #print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
-                    #      ", board " + str(j+1) + "/" + str(len(boards)), end="         \r")
-                    # Create all possible boards from this previous board that meet 
-                    # the current constraint
-                    new_boards = constraint.fill_board(board, self.num_objects)
-                    for new_board in new_boards:
-                        num_boards += 1
-                        next_boards_file.write(str(new_board) + "\n")
-                    
-                    # Calculate percentage complete for logging
-                    current_board = j + chunk_size * chunk + 1
-                    current_percentage = int(current_board * 100/last_boards)
-                    if current_percentage > last_update:
-                        print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
-                        last_update = current_percentage
+                # Calculate percentage complete for logging
+                current_board = j
+                current_percentage = int(current_board * 100/last_boards)
+                if current_percentage > last_update:
+                    print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
+                    last_update = current_percentage
                 
-                boards = []
-                chunk += 1
             print(flush=True)
             
             next_boards_file.close()
@@ -205,25 +206,24 @@ class BoardType:
             # Filter boards for parallelization after the first constraint
             if i == 0 and parallel is not None:
                 index, cores = parallel
-                with open("tmp_boards_0.b", "r") as f:
+                with open(next_boards_file.name, "r") as f:
                     next_boards = f.readlines()
                 next_boards = [board.rstrip("\r\n") for i, board in enumerate(next_boards) if i % cores == index]
                 num_boards = len(next_boards)
-                with open("tmp_boards_0.b", "w") as f:
+                with open(next_boards_file.name, "w") as f:
                     f.write("\n".join(next_boards) + "\n")
+
+            boards = BoardType._chunked_read(next_boards_file.name, chunk_size)
                 
             # Remove temporary file
             if boards_file:
                 boards_file.close()
-                os.remove("tmp_boards_" + str(i-1) + ".b")            
+                os.remove(boards_file.name)
             
             # Open new boards file and next boards file
-            boards_file = open("tmp_boards_" + str(i) + ".b", "r")
             if i + 1 < len(constraints):
-                next_boards_file = open("tmp_boards_" + str(i+1) + ".b", "w")
-            boards = []
+                next_boards_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
 
-            total_chunks = max(math.ceil(num_boards/chunk_size), 1)
             last_boards = num_boards
         
         # Close temporary files
@@ -233,64 +233,42 @@ class BoardType:
         next_boards_file.close()
         
         # Open last boards file and final file to hold finished boards
-        boards_file = open("tmp_boards_" + str(len(constraints)-1) + ".b", "r")
-        boards = []
+        boards = BoardType._chunked_read(next_boards_file.name, chunk_size)
         final_boards_file = open(filename, "w")
-        
-        more_boards = True
-        
+               
         print("Finishing boards with remaining objects", flush=True)
-        chunk = 0
         last_update = 0
         
-        # Retrieve boards from the last board file
-        while more_boards:
-            if len(boards) == 0:
-                # Pull in boards (up to chunk size)
-                while len(boards) < chunk_size:
-                    board_str = boards_file.readline().rstrip("\r\n")
-                    if len(board_str) == 0:
-                        more_boards = False
-                        break
-                    else:
-                        boards.append(Board.parse(board_str))
-            
-            # Fill in all remaining boards
-#             print("Processing chunk " + str(chunk+1) + "/" + str(total_chunks))
-            for i, board in enumerate(boards):
-#                 print("Processing chunk " + str(chunk + 1) + "/" + str(total_chunks) + 
-#                      ", board " + str(i+1) + "/" + str(len(boards)), end="        \r")
-                # Collect remaining objects
-                new_num_objects = self._subtract_num_objects(board)
-                # Create all permutations of remaining objects to put in the board
-                perms = permutations_multi(new_num_objects)
+        # Fill in all remaining boards
+        for i, board in enumerate(boards):
+            # Collect remaining objects
+            new_num_objects = self._subtract_num_objects(board)
+            # Create all permutations of remaining objects to put in the board
+            perms = permutations_multi(new_num_objects)
 
-                for perm in perms:
-                    board_copy = board.copy()
-                    j = 0
-                    # Fill in board with this permutation of board objects
-                    for k, obj in enumerate(board):
-                        if board[k] is None:
-                            board_copy[k] = perm[j]
-                            j += 1
-                            
-                    # Add it to the file
-                    final_boards_file.write(str(board_copy) + "\n")
-                             
-                # Calculate percentage for logging
-                current_board = i + chunk_size * chunk + 1
-                current_percentage = int(current_board * 100/last_boards)
-                if current_percentage > last_update:
-                    print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
-                    last_update = current_percentage
+            for perm in perms:
+                board_copy = board.copy()
+                j = 0
+                # Fill in board with this permutation of board objects
+                for k, obj in enumerate(board):
+                    if board[k] is None:
+                        board_copy[k] = perm[j]
+                        j += 1
+
+                # Add it to the file
+                final_boards_file.write(str(board_copy) + "\n")
+
+            # Calculate percentage for logging
+            current_board = i
+            current_percentage = int(current_board * 100/last_boards)
+            if current_percentage > last_update:
+                print(str(current_percentage) + "% complete: " + str(current_board) + "/" + str(last_boards), flush=True)
+                last_update = current_percentage
                     
-            boards = []
-            chunk += 1
         print(flush=True)
         
         # Clean up files
-        boards_file.close()
-        os.remove("tmp_boards_" + str(len(constraints)-1) + ".b")
+        os.remove(next_boards_file.name)
         final_boards_file.close()
 
     def generate_all_boards(self, parallel=None):

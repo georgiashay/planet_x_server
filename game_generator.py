@@ -3,6 +3,30 @@ import planetx_game.db_ops as db_ops
 
 class GameGenerator:
     @classmethod
+    def _chunked_read(cls, board_filename, chunk_size):
+        board_file = open(board_filename, "r")
+        more_boards = True
+        boards = []
+        
+        while more_boards:
+            # Bring in next chunk of boards into memory
+            if len(boards) == 0:
+                while len(boards) < chunk_size:
+                    board_str = board_file.readline().rstrip("\r\n")
+                    if len(board_str) == 0:
+                        more_boards = False
+                        break
+                    else:
+                        boards.append(Board.parse(board_str))
+            
+            for board in boards:
+                yield board
+               
+            boards = []
+            
+        board_file.close()
+            
+    @classmethod
     def generate_games(cls, board_type, input_filename, output_filename, chunk_size=float('inf')):
         """
         Generate games from a board file
@@ -20,45 +44,28 @@ class GameGenerator:
                 pass
             num_boards = i+1
                         
-        board_file = open(input_filename, "r")        
+        boards = cls._chunked_read(input_filename, chunk_size)
         game_file = open(output_filename, "w")
-        
-        boards = []
-        more_boards = True
         
         current_board = 0
         last_update = 0
-        chunk = 0
-        while more_boards:
-            # Bring in next chunk of boards into memory
-            if len(boards) == 0:
-                while len(boards) < chunk_size:
-                    board_str = board_file.readline().rstrip("\r\n")
-                    if len(board_str) == 0:
-                        more_boards = False
-                        break
-                    else:
-                        boards.append(Board.parse(board_str))
-            
-            # Create a game for each board
-            for board in boards:
-                game = Game.generate_from_board(board, board_type)
-                # If a game is generated, add it to the file
-                # Some games cannot be generated, or were not generated based on the 
-                # random choices made
-                if game is not None:
-                    game_file.write(game.code() + "\n")
-                    
-                # Calculate percentage for log
-                current_board += 1
-                current_percentage = round((current_board + 1)*100/num_boards, 2)
-                if current_percentage > last_update:
-                    print(str(current_percentage) + "% complete " + str(current_board+1) + "/" + str(num_boards))
-                    last_update = current_percentage
-            
-            boards = []
         
-        board_file.close()
+        # Create a game for each board
+        for board in boards:
+            game = Game.generate_from_board(board, board_type)
+            # If a game is generated, add it to the file
+            # Some games cannot be generated, or were not generated based on the 
+            # random choices made
+            if game is not None:
+                game_file.write(game.code() + "\n")
+
+            # Calculate percentage for log
+            current_board += 1
+            current_percentage = round((current_board + 1)*100/num_boards, 2)
+            if current_percentage > last_update:
+                print(str(current_percentage) + "% complete " + str(current_board+1) + "/" + str(num_boards))
+                last_update = current_percentage
+                    
         game_file.close()
         
     @staticmethod
