@@ -343,13 +343,16 @@ class RelationRule(Rule):
         pass
         
     def real_strength(self, board, constraints):
+        # Constraints relevant to this rule
         relevant_constraints = [constraint for constraint in constraints if 
                                 (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object1)
                                 or (isinstance(constraint, RelationRule) and 
                                     set(constraint.space_objects()) == set(self.space_objects()))]
                 
         
+        # Only consider the positions of space object 2
         base_board = Board([obj if obj is self.space_object2 else None for obj in board])
+        # Build up all possible boards given the relevant constraints and positions of space object 2
         boards = [base_board]
         for constraint in relevant_constraints:
             next_boards = []
@@ -380,24 +383,31 @@ class RelationRule(Rule):
                 next_boards.append(board_copy)
         boards = next_boards
             
+        # Count number of possible boards
         num_total_combos = len(boards)
+        # Count number of possible boards that also follow this rule
         valid_boards = [b for b in boards if self.is_satisfied(b)]
         num_valid_combos = len(valid_boards)
         
         if num_total_combos == 1:
             return 0
         
+        # Strength depends on how many combinations were eliminated
         return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
     
     def base_strength(self, board):
         num_object1 = board.num_objects()[self.space_object1]
         num_object2 = board.num_objects()[self.space_object2]
         
+        # Number of positions space object 1 could be in 
         num_positions = len(board) - num_object2
+        # Number of positions space object 1 could be in given this rule with an "every" qualifier
         num_positive_positions = len(self.positive_positions(board))
                 
+        # Number of combinations of positions for object 1
         total_combos = comb(num_positions, num_object1)
         
+        # Determine strength based on 
         if self.qualifier is RuleQualifier.NONE:
             valid_combos = comb(num_positions - num_positive_positions, num_object1)
             invalid_combos = total_combos - valid_combos
@@ -415,9 +425,11 @@ class SelfRule(Rule):
         return [self.space_object]
     
     def real_strength(self, board, constraints):
+        # Consider constraints relevant to this rule
         relevant_constraints = [constraint for constraint in constraints if 
                                 (isinstance(constraint, SelfRule) and constraint.space_object is self.space_object)]
         
+        # Build up all possible boards with this object
         base_board = Board([None] * len(board))
         boards = [base_board]
         for constraint in relevant_constraints:
@@ -449,6 +461,7 @@ class SelfRule(Rule):
                 next_boards.append(board_copy)
         boards = next_boards 
         
+        # Determine how many of these boards are valid considering this rule
         num_total_combos = len(boards)
         valid_boards = [b for b in boards if self.is_satisfied(b)]
         num_valid_combos = len(valid_boards)
@@ -456,6 +469,7 @@ class SelfRule(Rule):
         if num_total_combos == 1:
             return 0
         
+        # Assign a strength based on how many combinations were eliminated
         return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
         
 class AdjacentRule(RelationRule):
@@ -640,17 +654,22 @@ class AdjacentRule(RelationRule):
         has_none_rule = False
         
         for rule in constraints:
+            # Don't allow adjacency rules with the same two objects as an existing constraint
             if isinstance(rule, AdjacentRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                 return False
             
         for rule in other_rules:
+            # Don't allow relation rules with the same two objects as an existing rule
             if isinstance(rule, RelationRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                 return False
+            # Don't allow self rules with object1 if I am a rule with Empty as the second object
             elif isinstance(rule, SelfRule) and self.space_object2 == SpaceObject.Empty \
             and rule.space_object == self.space_object1:
                 return False
+            # If space object 1 already has a "not adjacent to" rule, we need to limit what rules 
+            # we can produce
             if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object1 or \
             rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -659,6 +678,8 @@ class AdjacentRule(RelationRule):
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Set the number of spots adjacent to the space_object1's that could be any 
+            # object, not just those defined in previous adjacency rules
             if isinstance(rule, AdjacentRule) and rule.space_object1 == self.space_object1:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_object1
@@ -674,11 +695,15 @@ class AdjacentRule(RelationRule):
                     num_spots_uncovered -= num_object1
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2
-                    
+                 
+        # Adjacenct objects already totally defined, redundant to create another rule
         if num_spots_uncovered <= 0:
             return False
             
+        # If we create an every rule, it will define num_object1 more objects adjacent to object 2
+        # We should only do this if this wouldn't over-define adjacent objects
         every_allowed = (num_spots_uncovered > num_object1) or (not has_none_rule)
+        # If we create an "at least one" rule, it will define 1 more object adjacent to object 2
         at_least_one_allowed = (num_spots_uncovered > 1) or (not has_none_rule)
        
         if not every_allowed and self.qualifier is RuleQualifier.EVERY:
@@ -700,18 +725,23 @@ class AdjacentRule(RelationRule):
         has_none_rule = False
         
         for rule in constraints:
+            # Don't allow adjacency rules with the same two objects as an existing constraint
             if isinstance(rule, cls) and rule == cls(space_object1, space_object2, rule.qualifier):
                 return None
             
         for rule in other_rules:
+            # Don't allow relation rules with the same two objects as an existing rule
             if isinstance(rule, cls) and (rule.space_object1 == space_object1 or rule.space_object2 == space_object1) \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
+            # Don't allow self rules with object1 if I am a rule with Empty as the second object
             elif isinstance(rule, AdjacentSelfRule) and rule.space_object == space_object1 \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Set the number of spots adjacent to the space_object1's that could be any 
+            # object, not just those defined in previous adjacency rules
             if isinstance(rule, cls) and rule.space_object1 == space_object1:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_object1
@@ -727,11 +757,15 @@ class AdjacentRule(RelationRule):
                     num_spots_uncovered -= num_object1
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2
-                            
+
+        # Adjacenct objects already totally defined, redundant to create another rule
         if num_spots_uncovered <= 0:
             return None
             
+        # If we create an every rule, it will define num_object1 more objects adjacent to object 2
+        # We should only do this if this wouldn't over-define adjacent objects
         can_generate_every = (num_spots_uncovered > num_object1) or (not has_none_rule)
+        # If we create an "at least one" rule, it will define 1 more object adjacent to object 2
         can_generate_at_least_one = (num_spots_uncovered > 1) or (not has_none_rule)
         
         num_adjacent = 0
@@ -933,6 +967,7 @@ class OppositeRule(RelationRule):
         num_obj2 = num_objects[self.space_object2]
         num_none = 0
         
+        # Count number of objects remaining to acheive num_objects
         for obj in board:
             if obj is self.space_object1:
                 num_obj1 -= 1
@@ -941,6 +976,7 @@ class OppositeRule(RelationRule):
             elif obj is None:
                 num_none += 1
         
+        # Number of Nones that will be on the board
         num_none -= (num_obj1 + num_obj2)
         
         new_boards = []
@@ -981,8 +1017,11 @@ class OppositeRule(RelationRule):
                 board_copy[i + half] = self.space_object2
                 board_copy[i] = self.space_object1
 
+                # Only valid if these objects were already there or if we have some left to place
                 if (already_opp or num_obj2_left > 0) and (is_obj1 or num_obj1_left > 0):
+                    # Subtract 1 from number of objects that should be on the rest of the board
                     new_num_objects[self.space_object1] = num_obj1 - 1
+                    # Subtract 1 from number of objects left if objects were placed
                     new_num_objects_left[self.space_object1] = num_obj1_left - (not is_obj1)
                     new_num_objects_left[self.space_object2] = num_obj2_left - (not already_opp)
                     yield from self._fill_board_every(board_copy, new_num_objects, new_num_objects_left, i+1)
@@ -1028,18 +1067,37 @@ class OppositeRule(RelationRule):
         num_spots_uncovered = num_object1
         has_none_rule = False
         
+        num_object1 = board.num_objects()[space_object1]
+        num_object2 = board.num_objects()[space_object2]
+        
+        # Some are already constrained, don't generate these rules
+        prev_rules = constraints + other_rules
+        num_spots_uncovered = 2 * num_object1
+        has_none_rule = False
+
+        # If we create an every rule, it will define num_object1 more objects adjacent to object 2
+        # We should only do this if this wouldn't over-define adjacent objects
+        every_allowed = (num_spots_uncovered > num_object1) or (not has_none_rule)
+        # If we create an "at least one" rule, it will define 1 more object adjacent to object 2
+        at_least_one_allowed = (num_spots_uncovered > 1) or (not has_none_rule)
+         
         for rule in constraints:
+            # Don't allow opposite rules with the same two objects as an existing constraint
             if isinstance(rule, OppositeRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                 return False
             
         for rule in other_rules:
+            # Don't allow relation rules with the same two objects as an existing rule
             if isinstance(rule, RelationRule) and \
             { self.space_object1, self.space_object2 } == { rule.space_object1, rule.space_object2 }:
                 return False
+            # Don't allow self rules with object1 if I am a rule with Empty as the second object
             elif isinstance(rule, SelfRule) and self.space_object2 == SpaceObject.Empty \
             and rule.space_object == self.space_object1:
                 return False
+            # If space object 1 already has a "not opposite to" rule, we need to limit what rules 
+            # we can produce
             if isinstance(rule, OppositeRule) and (rule.space_object1 == self.space_object1 or \
             rule.space_object2 == self.space_object1) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -1048,6 +1106,8 @@ class OppositeRule(RelationRule):
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Set the number of spots opposite to the space_object1's that could be any 
+            # object, not just those defined in previous opposite rules
             if isinstance(rule, OppositeRule) and rule.space_object1 == self.space_object1:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_object1
@@ -1064,9 +1124,11 @@ class OppositeRule(RelationRule):
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2      
         
+        # Opposite objects already totally defined, redundant to create another rule
         if num_spots_uncovered <= 0:
             return False
             
+        # We should only do this if this wouldn't over-define opposite objects
         every_allowed = not has_none_rule
         at_least_one_allowed = (num_spots_uncovered > 1) or (not has_none_rule)
             
@@ -1089,18 +1151,23 @@ class OppositeRule(RelationRule):
         has_none_rule = False
         
         for rule in constraints:
+            # Don't allow opposite rules with the same two objects as an existing constraint
             if isinstance(rule, cls) and rule == cls(space_object1, space_object2, rule.qualifier):
                 return None
             
         for rule in other_rules:
+            # Don't allow relation rules with the same two objects as an existing rule
             if isinstance(rule, cls) and (rule.space_object1 == space_object1 or rule.space_object2 == space_object1) \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
+            # Don't allow self rules with object1 if I am a rule with Empty as the second object
             elif isinstance(rule, OppositeSelfRule) and rule.space_object == space_object1 \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Set the number of spots opposite to the space_object1's that could be any 
+            # object, not just those defined in previous opposite rules
             if isinstance(rule, cls) and rule.space_object1 == space_object1:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_object1
@@ -1117,9 +1184,11 @@ class OppositeRule(RelationRule):
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2      
         
+        # Opposite objects already totally defined, redundant to create another rule
         if num_spots_uncovered <= 0:
             return None
             
+        # We should only do this if this wouldn't over-define opposite objects
         can_generate_every = not has_none_rule
         can_generate_at_least_one = (num_spots_uncovered > 1) or (not has_none_rule)
             
@@ -1330,13 +1399,16 @@ class WithinRule(RelationRule):
         prev = None
         countdown = 0
         is_valid = True
+        # Maintain a count of how many sectors since we've seen an object1 or object2
         for i in range(-self.num_sectors, len(board)):
             obj = board[i]
+            # If it hasn't been num_sectors and we see the other object, it doesn't satisfy the rule
             if obj is self.space_object1 or obj is self.space_object2:
                 if countdown != 0 and obj != prev:
                     is_valid = False
                     break
                 prev = obj
+                # Restart the countdown
                 countdown = self.num_sectors
             else:
                 countdown = max(0, countdown - 1)
@@ -1347,14 +1419,17 @@ class WithinRule(RelationRule):
         prev = None, None
         countdown = 0
         within_indices = set()
+        # Maintain a countdown of how long it's been since we've seen an object1 or object 2
         for i in range(-self.num_sectors, len(board)):
             if board[i] is self.space_object2:
                 if countdown > 0 and prev[0] is self.space_object1:
+                    # We've seen an object1 within the past num_sectors, and we found an object 2
                     within_indices.add(i % len(board))
                 prev = board[i], i
                 countdown = self.num_sectors
             elif board[i] is self.space_object1:
-                if countdown > 0 and prev[1] is not None:
+                if countdown > 0 and prev[1] is self.space_object2:
+                    # We've seen an object2 within the past num_sectors, and we found an object 1
                     within_indices.add(prev[1] % len(board))
                 prev = board[i], i
                 countdown = self.num_sectors
@@ -1549,6 +1624,7 @@ class WithinRule(RelationRule):
         max_every = sum(num_objects.values())
         
         for constraint in constraints:
+            # Don't add rule if there's already a Within constraint on these objects and this doesn't make it tighter
             if isinstance(constraint, WithinRule):
                 if constraint.qualifier is RuleQualifier.NONE and \
                 { self.space_object1, self.space_object2 } == { constraint.space_object1, constraint.space_object2 }:
@@ -1886,6 +1962,11 @@ class AdjacentSelfRule(SelfRule):
                     yield from self._fill_board_runs(board_copy, num_obj - 1, i+1, t+1)
             
     def _prepare_board(self, board, num_obj, lone, run_backwards, start_i=None):
+        # Get board into a valid starting state
+        # A valid starting state is one where there are no lone objects
+        
+        # lone: positions of lone objects
+        # run_backwards: posititons of "starts" of object runs that can be continued backwards
         if start_i is None:
             start_i = len(board) - 1
         
@@ -1900,15 +1981,19 @@ class AdjacentSelfRule(SelfRule):
             obj = board[i]
             if obj is self.space_object:
                 if board[i-1] is not self.space_object and board[i+1] is not self.space_object:
+                    # lone object
                     if board[i+1] is None and board[i+2] is not self.space_object:
+                        # Add object to the right, remove from lone object list
                         board_copy = board.copy()
                         board_copy[i+1] = self.space_object
                         new_lone = lone - {i}
                         yield from self._prepare_board(board_copy, num_obj - 1, new_lone, run_backwards, i-1)
                         
                 if board[i-1] is None:
+                    # Continue this object run backwards
                     new_run_backwards = run_backwards - { i }
                     if board[i+1] is self.space_object:
+                        # Continue it with 0 objects backwards
                         yield from self._prepare_board(board.copy(), num_obj, lone, new_run_backwards, i-1)
                         
                     num_left = num_obj
@@ -1916,23 +2001,33 @@ class AdjacentSelfRule(SelfRule):
                     board_copy = board.copy()
                     while num_left > 0:
                         if board[j] is None:
+                            # Add an object to the run on the left
                             board_copy[j] = self.space_object
                             num_left -= 1
+                            # If j-1 was lone, it isn't anymore
                             new_lone = lone - { j - 1 % len(board) }
+                            # Add options where we stop the run here
                             yield from self._prepare_board(board_copy, num_left, new_lone, new_run_backwards, j-1)
                             board_copy = board_copy.copy()
                             j -= 1
                         elif board[j] is self.space_object:
+                            # Object is already part of the run, keep going backwards
                             j -= 1
                         else:
+                            # Hit another type of object, run is over
                             break
                                                 
     def _fill_board_every(self, board, num_objects):
         num_left = num_objects[self.space_object] - sum(obj is self.space_object for obj in board)
+        # Get current positions of lone objects
         lone = set(i for i, obj in enumerate(board) if obj is self.space_object
                 and board[i-1] is not self.space_object and board[i+1] is not self.space_object)
+        # Get current positions where we can continue an object run to the left
         run_backwards = set(i for i, obj in enumerate(board) if obj is self.space_object
                            and board[i-1] is None)
+        # Prepare the board by getting boards starting from this one where there are no
+        # lone objects, and where we try continuing runs to the left (which isn't
+        # allowed in the _fill_board_runs algorithm)
         boards = self._prepare_board(board, num_left, lone, run_backwards)
 
         for num_obj, board in boards:
@@ -1973,18 +2068,24 @@ class AdjacentSelfRule(SelfRule):
         has_none_rule = False
 
         for rule in constraints:
+            # If this object already has an adjacent self constraint, don't add this rule
             if isinstance(rule, AdjacentSelfRule) and self.space_object == rule.space_object:
                 return False
+            # If this object has a sectors constraint, and adjacent rule would be too constraining
             elif isinstance(rule, SectorsRule) and rule.space_object == self.space_object:
                 return False
             
         for rule in other_rules:
+            # If there's already a rule with this object and empty, don't create this self rule
             if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
             rule.space_object2 == SpaceObject.Empty:
                 return False
+            # If there's already a self rule with this object, don't create this self rule
             elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
                 return False
             
+            # If this object has a "not" adjacent rule already, we need to limit whether
+            # we can create more adjacent rules
             if isinstance(rule, AdjacentRule) and (rule.space_object1 == self.space_object or \
             rule.space_object2 == self.space_object) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -1993,6 +2094,7 @@ class AdjacentSelfRule(SelfRule):
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Count the number of "adjacent spots" not covered by current adjacency rules
             if isinstance(rule, AdjacentRule) and rule.space_object1 == self.space_object:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
@@ -2008,13 +2110,19 @@ class AdjacentSelfRule(SelfRule):
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2   
+            # If there is a band rule below a certain size, the objects must necessarily be 
+            # adjacent so we shouldn't create this rule
             elif isinstance(rule, BandRule) and rule.space_object == self.space_object and \
             rule.band_size < 2 * num_obj - 1:
                 return False
         
+        # If we've defined all of the objects next to this one already, we shouldn't create 
+        # more adjacency rules
         if num_spots_uncovered <= 0:
             return False
         
+        # There must be room to define 2 more spots for the objects next to this one in order 
+        # to create a self-adjacency rule
         at_least_one_allowed = (num_spots_uncovered > 2) or (not has_none_rule)
         
         if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
@@ -2031,20 +2139,25 @@ class AdjacentSelfRule(SelfRule):
         has_none_rule = False
 
         for rule in constraints:
+            # If this object already has an adjacent self constraint, don't add this rule
             if isinstance(rule, cls) and rule == cls(space_object, rule.qualifier):
                 return None
+            # If this object has a sectors constraint, and adjacent rule would be too constraining
             elif isinstance(rule, SectorsRule) and rule.space_object == space_object:
                 return None
             
         for rule in other_rules:
+            # If there's already a rule with this object and empty, don't create this self rule
             if isinstance(rule, AdjacentRule) and (rule.space_object1 == space_object or rule.space_object2 == space_object) \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
+            # If there's already a self rule with this object, don't create this self rule
             elif isinstance(rule, cls) and rule.space_object == space_object \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Count the number of "adjacent spots" not covered by current adjacency rules
             if isinstance(rule, AdjacentRule) and rule.space_object1 == space_object:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
@@ -2060,13 +2173,19 @@ class AdjacentSelfRule(SelfRule):
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2   
+            # If there is a band rule below a certain size, the objects must necessarily be 
+            # adjacent so we shouldn't create this rule
             elif isinstance(rule, BandRule) and rule.space_object == space_object and \
             rule.band_size < 2 * num_obj - 1:
                 return None
-        
+    
+        # If we've defined all of the objects next to this one already, we shouldn't create 
+        # more adjacency rules
         if num_spots_uncovered <= 0:
             return None
         
+        # There must be room to define 2 more spots for the objects next to this one in order 
+        # to create a self-adjacency rule
         can_generate_at_least_one = (num_spots_uncovered > 2) or (not has_none_rule)
                 
         # If there's only one object it can never be adjacent to itself
@@ -2105,6 +2224,7 @@ class AdjacentSelfRule(SelfRule):
         
     @staticmethod
     def _repeats(partition):
+        # Number of rearrangements of a partition possible without changing it
         counts = {}
         for val in partition:
             if val in counts:
@@ -2129,11 +2249,14 @@ class AdjacentSelfRule(SelfRule):
             for partition in calc_partitions(num_object, 2):
                 repeats = AdjacentSelfRule._repeats(partition)
                 combos = board_size
+                # Must be enough spots to leave gaps between the objects
                 spots_left = board_size - num_object - 1
                 if spots_left >= len(partition) - 1:
+                    # Number of ways to rearrange all the empty spots and the groupings of objects
                     combos *= int(factorial(spots_left)/factorial(spots_left - len(partition) + 1))
                 else:
                     combos = 0
+                # Number of unique combos
                 combos //= repeats
                 num_positive_combos += combos
                 
@@ -2144,11 +2267,14 @@ class AdjacentSelfRule(SelfRule):
 
             num_none_combos = board_size
             spots_left = board_size - num_object - 1
+            # Must be enough spots to leave gaps between all the objects
             if spots_left >= num_object - 1:
+                # Number of ways to rearrange all the empty spots and groupings of objects
                 num_none_combos *= int(factorial(spots_left)/factorial(spots_left - num_object + 1))
             else:
                 num_none_combos = 0
                 
+            # Number of unique combos
             num_none_combos //= factorial(num_object)
             
             if self.qualifier is RuleQualifier.NONE:
@@ -2164,14 +2290,17 @@ class AdjacentSelfRule(SelfRule):
                 
         if self.qualifier is RuleQualifier.EVERY:
             num_positive_combos = 0
-            for partition in AdjacentSelfRule._together_partitions(num_object):
+            for partition in calc_partitions(num_object):
                 repeats = AdjacentSelfRule._repeats(partition)
                 combos = board_size
+                # Must be enough spots to leave gaps between the objects
                 spots_left = board_size - num_object - 1
                 if spots_left >= len(partition) - 1:
+                    # Number of ways to rearrange all the empty spots and the groupings of objects
                     combos *= int(factorial(spots_left)/factorial(spots_left - len(partition) + 1))
                 else:
                     combos = 0
+                # Number of unique combos
                 combos //= repeats
                 num_positive_combos += combos
                 
@@ -2182,11 +2311,14 @@ class AdjacentSelfRule(SelfRule):
 
             num_none_combos = board_size
             spots_left = board_size - num_object - 1
+            # Must be enough spots to leave gaps between all the objects
             if spots_left >= num_object - 1:
+                # Number of ways to rearrange all the empty spots and groupings of objects
                 num_none_combos *= int(factorial(spots_left)/factorial(spots_left - num_object + 1))
             else:
                 num_none_combos = 0
                 
+            # Number of unique combos
             num_none_combos //= factorial(num_object)
             
             if self.qualifier is RuleQualifier.NONE:
@@ -2279,6 +2411,7 @@ class OppositeSelfRule(SelfRule):
         num_obj = num_objects[self.space_object]
         num_none = 0
         
+        # Number of None and obj1 needing to be added
         for obj in board:
             if obj is self.space_object:
                 num_obj -= 1
@@ -2287,6 +2420,7 @@ class OppositeSelfRule(SelfRule):
         
         num_none -= num_obj
                 
+        # Get all permutations and check which ones work
         perms = permutations_multi({self.space_object: num_obj, None: num_none})
         for p in perms:
             board_copy = board.copy()
@@ -2299,6 +2433,7 @@ class OppositeSelfRule(SelfRule):
                 yield board_copy
     
     def _prepare_board_every(self, board):
+        # Ensure every space_object already on the board is opposite another space_object
         new_board = board.copy()
         half = len(board) // 2
         
@@ -2325,6 +2460,7 @@ class OppositeSelfRule(SelfRule):
         half = len(board) // 2
         
         new_boards = []
+        # Place 2 space_objects opposite each other
         for i in range(start_i, half):
             if board[i] is None:
                 board_copy = board.copy()
@@ -2343,15 +2479,18 @@ class OppositeSelfRule(SelfRule):
             num_obj = num_objects[self.space_object]
             num_left = num_obj - sum(obj is self.space_object for obj in board)
             
+            # Fill in space_objects opposite existing space_objects
             prep_board = self._prepare_board_every(board)
             if prep_board is None:
                 return []
             
+            # Check that we still have >= 0 space_objects left to place
             num_left = num_obj - sum(obj is self.space_object for obj in prep_board)
             
             if num_left < 0:
                 return []
             
+            # Get all combos of placing more space_objects opposite each other on the board
             return self._fill_board_every(prep_board, num_left)
             
     def affects(self):
@@ -2384,17 +2523,23 @@ class OppositeSelfRule(SelfRule):
             return False
 
         for rule in constraints:
+            # If there's already an opposite self constraint, don't add this rule
             if isinstance(rule, OppositeSelfRule) and rule.space_object == self.space_object:
                 return False
+            # If there's a sectors constraint, an opposite self constraint would be too constraining
             elif isinstance(rule, SectorsRule) and rule.space_object == self.space_object:
                 return False
             
         for rule in other_rules:
+            # If there's already a relation rule between this space object and empty, don't add this rule
             if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
             rule.space_object2 == SpaceObject.Empty:
                 return False
+            # If there's already a self rule for this space object, don't add this rule
             elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
                 return False
+            # If there's already an not opposite rule for this object, we need to limit how many more 
+            # opposite rules can be added
             if isinstance(rule, OppositeRule) and (rule.space_object1 == self.space_object or \
             rule.space_object2 == self.space_object) and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
@@ -2403,6 +2548,7 @@ class OppositeSelfRule(SelfRule):
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Check how many spots opposite to this object are not covered by existing rules
             if isinstance(rule, OppositeRule) and rule.space_object1 == self.space_object:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
@@ -2418,13 +2564,18 @@ class OppositeSelfRule(SelfRule):
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2 
+            # If the objects are in a band small enough, it is impossible for them to be opposite
+            # each other so this rule shouldn't be added
             elif isinstance(rule, BandRule) and rule.space_object == self.space_object and \
             rule.band_size <= board_size // 2:
                 return False
         
+        # If all opposite spots have been covered, another opposite rule would be redundant
         if num_spots_uncovered <= 0:
             return False
        
+        # To create a new opposite self rule, more than two spots must not be covered or 
+        # there are no "none" rules to make it over-defined
         at_least_one_allowed = (num_spots_uncovered > 2) or (not has_none_rule)
         
         if not at_least_one_allowed and self.qualifier is RuleQualifier.AT_LEAST_ONE:
@@ -2441,20 +2592,25 @@ class OppositeSelfRule(SelfRule):
         has_none_rule = False
 
         for rule in constraints:
+            # If there's already an opposite self constraint, don't add this rule
             if isinstance(rule, cls) and rule == cls(space_object, rule.qualifier):
                 return None
+            # If there's a sectors constraint, an opposite self constraint would be too constraining
             elif isinstance(rule, SectorsRule) and rule.space_object == space_object:
                 return None
             
         for rule in other_rules:
+            # If there's already a relation rule between this space object and empty, don't add this rule
             if isinstance(rule, OppositeRule) and (rule.space_object1 == space_object or rule.space_object2 == space_object) \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
+            # If there's already a self rule for this space object, don't add this rule
             elif isinstance(rule, cls) and rule.space_object == space_object \
             and rule.qualifier is RuleQualifier.NONE:
                 has_none_rule = True
             
         for rule in prev_rules:
+            # Check how many spots opposite to this object are not covered by existing rules
             if isinstance(rule, OppositeRule) and rule.space_object1 == space_object:
                 if rule.qualifier is RuleQualifier.EVERY:
                     num_spots_uncovered -= num_obj
@@ -2470,13 +2626,18 @@ class OppositeSelfRule(SelfRule):
                     num_spots_uncovered -= num_obj
                 elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
                     num_spots_uncovered -= 2 
+            # If the objects are in a band small enough, it is impossible for them to be opposite
+            # each other so this rule shouldn't be added
             elif isinstance(rule, BandRule) and rule.space_object == space_object and \
             rule.band_size <= len(board) // 2:
                 return None
         
+        # If all opposite spots have been covered, another opposite rule would be redundant
         if num_spots_uncovered <= 0:
             return None
-        
+
+        # To create a new opposite self rule, more than two spots must not be covered or 
+        # there are no "none" rules to make it over-defined
         can_generate_at_least_one = (num_spots_uncovered > 2) or (not has_none_rule)
         
         # Board must have an even number of sectors for objects to be opposite each other
@@ -2539,12 +2700,14 @@ class OppositeSelfRule(SelfRule):
         num_total_combos = comb(board_size, num_object)
             
         if self.qualifier is RuleQualifier.EVERY:
+            # Choose n/2 spots on half of the board to define where the space objects are 
             num_valid_combos = comb(half_size, half_num)
             return num_valid_combos/num_total_combos
         else:
             if len(board) < 2 * num_object:
                 return 0
             
+            # Choose spots for the space objects one by one
             num_none_combos = 1
             sectors_left = board_size
             for i in range(num_object):
@@ -2552,6 +2715,7 @@ class OppositeSelfRule(SelfRule):
                 sectors_left -= 2
             num_none_combos //= int(factorial(num_object))
             
+            # Define strength based on how many combinations are eliminaed
             if self.qualifier is RuleQualifier.NONE:
                 return num_none_combos/num_total_combos
             elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
@@ -2569,12 +2733,14 @@ class OppositeSelfRule(SelfRule):
         num_total_combos = comb(board_size, num_object)
             
         if self.qualifier is RuleQualifier.EVERY:
+            # Choose n/2 spots on half of the board to define where the space objects are 
             num_valid_combos = comb(half_size, half_num)
             return (num_total_combos - num_valid_combos)/(num_total_combos - 1)
         else:
             if len(board) < 2 * num_object:
                 return 0
             
+            # Choose spots for the space objects one by one
             num_none_combos = 1
             sectors_left = board_size
             for i in range(num_object):
@@ -2582,6 +2748,7 @@ class OppositeSelfRule(SelfRule):
                 sectors_left -= 2
             num_none_combos //= int(factorial(num_object))
             
+            # Define strength based on how many combinations are eliminaed
             if self.qualifier is RuleQualifier.NONE:
                 return (num_total_combos - num_none_combos)/(num_total_combos - 1)
             elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
@@ -2745,14 +2912,17 @@ class BandRule(SelfRule):
         return [ self.space_object ]
     
     def allowed_rule(self, num_objects, constraints, other_rules):
+        # If there's already a band rule constraint for this object, do not add another
         if any(isinstance(constraint, BandRule) and constraint.space_object == self.space_object 
               for constraint in constraints):
             return False
         
         for rule in other_rules:
+            # If there is a relation rule between this object and empty, do not add this rule
             if isinstance(rule, RelationRule) and self.space_object == rule.space_object1 and \
             rule.space_object2 == SpaceObject.Empty:
                 return False
+            # If there is a self rule for this object, do not add this rule
             elif isinstance(rule, SelfRule) and self.space_object == rule.space_object:
                 return False
         
@@ -2799,23 +2969,6 @@ class BandRule(SelfRule):
             
         num_total_combos = comb(len(board), num_object)
         return num_positive_combos/num_total_combos
-    
-    def factor_both_rules(self, board, rule):
-        if isinstance(rule, AdjacentSelfRule) and rule.space_object == self.space_object:
-            if rule.qualifier == RuleQualifier.EVERY:
-                num_object = board.num_objects()[self.space_object]
-                empty_spaces = self.band_size - num_object
-                partitions = AdjacentSelfRule._together_partitions(num_object)
-                partitions = [partition for partition in partitions if len(partition) <= empty_spaces + 1]
-            elif rule.qualifier == RuleQualifier.NONE:
-                num_object = board.num_objects()[self.space_object]
-                spaces = self.band_size + 1 - num_object
-                return len(board) * comb(spaces, num_object)/comb(len(board), num_object)
-            elif rule.qualifier == RuleQualifier.AT_LEAST_ONE:
-                num_object = board.num_objects()[self.space_object]
-                spaces = self.band_size + 1 - num_object
-                total_combos = comb(len(board), num_object)
-                return (total_combos - len(board) * comb(spaces, num_object))/total_combos
                 
     def base_strength(self, board):
         num_object = board.num_objects()[self.space_object]
