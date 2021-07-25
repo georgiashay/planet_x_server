@@ -1,26 +1,20 @@
 import sys
+import argparse
 
 from game_generator import GameGenerator
 from planetx_game.board_type import sector_types
 
-help_string = "Usage: python generate_games.py [number of sectors] [input file name ] [output file name] [# boards per chunk]"
+parser = argparse.ArgumentParser(description="Generate Planet X games given a set of boards.")
+parser.add_argument("sectors", type=int, help="The number of sectors on the boards")
+parser.add_argument("-i", "--input", type=str, help="The input file containing one board per line", required=True)
+parser.add_argument("-c", "--chunk-size", default=float('inf'), type=int, help="The number of boards to load into memory at one time", required=False)
+parser.add_argument("-o", "--out", type=str, help="The output filename", required=True)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(help_string)
-    elif sys.argv[1] == "-h" or sys.argv[1] == "--help":
-        print(help_string)
-    else:
-        try:
-            num_sectors = int(sys.argv[1])
-            board_type = sector_types[num_sectors]
-            input_filename = sys.argv[2]
-            output_filename = sys.argv[3]
-            chunk_size = int(sys.argv[4])
-        except Exception as e:
-            print(e)
-            print(help_string)
-        else:
-            GameGenerator.generate_games(board_type, input_filename, output_filename, chunk_size=chunk_size)
+    args = parser.parse_args(sys.argv[1:])    
+    try:
+        GameGenerator.generate_games(sector_types[args.sectors], args.input, args.out, chunk_size=args.chunk_size)
+    except Exception as e:
+        print(e)
 
 

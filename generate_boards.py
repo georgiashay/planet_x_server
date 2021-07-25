@@ -1,27 +1,20 @@
 import sys 
+import argparse
 
 from planetx_game.board_type import *
 from planetx_game.board import *
 
-help_string = "Usage: python generate_boards.py [number of sectors] [core number 0...n-1] [number of cores n] [# boards per chunk] [output file name]"
+parser = argparse.ArgumentParser(description="Generate Planet X boards of a specific size.")
+parser.add_argument("sectors", type=int, help="The number of sectors on the boards to generate")
+parser.add_argument("-p", "--parallel", nargs=2, type=int, default=(0, 1), help="The core number followed by the total number of cores (default: 0 1)", required=False)
+parser.add_argument("-c", "--chunk-size", default=float('inf'), type=int, help="The number of boards to load into memory at one time", required=False)
+parser.add_argument("-o", "--out", type=str, help="The output filename", required=True)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(help_string)
-    elif sys.argv[1] == "-h" or sys.argv[1] == "--help":
-        print(help_string)
-    else:
-        try:
-            num_sectors = int(sys.argv[1])
-            board_type = sector_types[num_sectors]
-            core_num = int(sys.argv[2])
-            num_cores = int(sys.argv[3])
-            parallel = (core_num, num_cores)
-            chunk_size = int(sys.argv[4])
-            filename = sys.argv[5]
-            
-            board_type.generate_boards_to_file(filename, parallel=parallel, chunk_size=chunk_size)
-        except Exception as e:
-            print(e)
-            print(help_string)
+    args = parser.parse_args(sys.argv[1:])
+    try:
+        board_type = sector_types[args.sectors]
+        board_type.generate_boards_to_file(args.out, parallel=args.parallel, chunk_size=args.chunk_size)
+    except Exception as e:
+        print(e)
 
