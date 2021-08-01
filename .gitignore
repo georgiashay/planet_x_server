@@ -8,6 +8,5 @@ creds.json
 *.crt
 *.key
 Data/
-Test/
 node_modules
 .pbuild

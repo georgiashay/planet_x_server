@@ -101,7 +101,10 @@ def fill_no_touch(counts, board):
             holes.append(False)
             in_hole = False
         elif in_hole:
-            holes[-1] += (obj,)
+            if holes[-1][-1] in counts and obj in counts and obj != holes[-1][-1]:
+                return
+            else:
+                holes[-1] += (obj,)
         else:
             in_hole = True
             holes.append((obj,))
@@ -190,7 +193,7 @@ def _fill_no_within(prev, countdown, counts, no_within_objs, board, n, i):
         else:
             # Moved further from an object, decrease countdown
             new_prev = prev
-            new_countdown = countdown - 1
+            new_countdown = max(0, countdown - 1)
         # Fill in board where possible starting after this index
         for p in _fill_no_within(new_prev, new_countdown, counts, no_within_objs, board, n, i+1):
             yield [board[i]] + p
@@ -225,10 +228,14 @@ def fill_no_within(counts, board, n):
     num_none = len([obj for obj in board if obj is None]) - sum_counts(counts)
     for p in _fill_no_within(None, 0, {**counts, None: num_none}, counts.keys(), board, n, 0):
         # Ensure the objects aren't too close to each other due to wraparound
-        first_i = next(i for i, obj in enumerate(p) if obj in counts)
-        last_i = next(i for i in range(len(p) - 1, -1, -1) if p[i] in counts and p[i] != p[first_i])
-        diff = first_i + (len(p) - last_i)
-        if diff > n:
+        try:
+            first_i = next(i for i, obj in enumerate(p) if obj in counts)
+            last_i = next(i for i in range(len(p) - 1, -1, -1) if p[i] in counts and p[i] != p[first_i])
+            diff = first_i + (len(p) - last_i)
+            if diff > n:
+                yield p
+        except StopIteration:
+            # Not >= 2 objects in counts in the board
             yield p
             
 def _fill_no_self_touch(prev, holes, obj, num_obj, num_none, t=0):
@@ -242,12 +249,12 @@ def _fill_no_self_touch(prev, holes, obj, num_obj, num_none, t=0):
         return
     else:
         # If there is a hole it doesn't conflict with the previous object, add it
-        if holes[0] and (holes[0][0] != prev or holes[0][0] != obj or prev != obj):
+        if holes[0] and (holes[0][0] != prev or holes[0][0] != obj or prev != obj or prev is None):
             for p in _fill_no_self_touch(holes[0][-1], holes[1:], obj, num_obj, num_none, t+1):
                 yield [None] + p
         else:
             # If we have objects left and the last thing wasn't this object, we can add it
-            if num_obj > 0 and obj != prev:
+            if num_obj > 0 and (obj != prev or prev is None):
                 for p in _fill_no_self_touch(obj, holes[1:], obj, num_obj - 1, num_none, t+1):
                     yield [obj] + p
             # If we have empties left, we can add one
@@ -265,7 +272,10 @@ def fill_no_self_touch(obj, num_obj, board):
             holes.append(False)
             in_hole = False
         elif in_hole:
-            holes[-1] += (o,)
+            if holes[-1][-1] == obj and o == obj:
+                return
+            else:
+                holes[-1] += (o,)
         else:
             in_hole = True
             holes.append((o,))
@@ -284,8 +294,9 @@ def fill_no_self_touch(obj, num_obj, board):
             # Make sure first and last aren't both obj
             if p[0] != p[-1] or p[0] != obj or p[-1] != obj:
                 # Make sure holes at start/end don't make the first and last be both obj
-                if holes[-1] == False or holes[0] != False or p[0] != holes[-1][-1] \
-                or p[0] != obj or holes[-1][-1] != obj:
+                first = holes[0][0] if holes[0] is not False else p[0]
+                last = holes[-1][-1] if holes[-1] is not False else p[-1]
+                if first != last or first != obj:
                     board_copy = board.copy()
                     j = 0
                     # Fill in board based on results
@@ -295,13 +306,12 @@ def fill_no_self_touch(obj, num_obj, board):
                             j += 1
                         elif board[i-1] is None:
                             j += 1
-                    yield board_copy
-     
+                    yield board_copy     
     
 def ordered_partitions(n, I=2, memo={}):
     if n in memo:
         return memo[(n, I)]
-    elif n < 2:
+    elif n < I:
         memo[(n, I)] = []
         return []
     else:
@@ -317,7 +327,7 @@ def ordered_partitions(n, I=2, memo={}):
 def calc_partitions(n, I=2, memo={}):
     if n in memo:
         return memo[(n, I)]
-    elif n < 2:
+    elif n < I:
         memo[(n, I)] = []
         return []
     else:
