@@ -339,3 +339,41 @@ def calc_partitions(n, I=2, memo={}):
 
         memo[(n, I)] = partitions
         return partitions
+    
+def cartesian_product_sets(l):
+    if len(l) == 0:
+        yield set()
+    else:
+        for val in l[0]:
+            for p in cartesian_product_sets(l[1:]):
+                yield p | {val}
+                
+def cartesian_product_sets_unique(l):
+    return { tuple(sorted(choice)) for choice in cartesian_product_sets(l) }
+
+def cartesian_product_tuples(l):
+    if len(l) == 0:
+        yield tuple()
+    else:
+        for val in l[0]:
+            for p in cartesian_product_tuples(l[1:]):
+                yield (val,) + p
+
+def _cartesian_product_sets_no_supersets_with_dups(l):
+    for p in cartesian_product_tuples(l):
+        result_set = set(p)
+        allowed = True
+        for i in range(len(l)):
+            unchosen = l[i] - result_set
+            if len(l[i]) - len(unchosen) > 1:
+                other_values = p[:i] + p[i+1:]
+                if p[i] not in other_values:
+                    allowed = False
+                    break
+        if allowed:
+            yield result_set
+                
+def cartesian_product_sets_no_supersets(l):
+    return { tuple(sorted(choice)) for choice in _cartesian_product_sets_no_supersets_with_dups(l) }
+    
+        

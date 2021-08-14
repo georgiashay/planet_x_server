@@ -7,7 +7,7 @@ import tempfile
 
 from .rules import *
 from .board import SpaceObject
-    
+
 class BoardType:
     """
     Represents a type of game board, defining the number of sectors, number of

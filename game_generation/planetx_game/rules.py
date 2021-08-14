@@ -5,9 +5,8 @@ from enum import Enum
 from abc import *
 from math import comb, factorial
 
-from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch, calc_partitions, ordered_partitions
+from .utilities import permutations_multi, add_two_no_touch, fill_no_within, add_one_no_self_touch, calc_partitions, ordered_partitions, cartesian_product_sets_unique, cartesian_product_sets_no_supersets
 from .board import *
-from .board_type import *
 
 MUST_ELIMINATE = False
 
@@ -548,10 +547,10 @@ class AdjacentRule(RelationRule):
                 num_obj1 -= 1
             elif obj is self.space_object2:
                 num_obj2 -= 1
-        
-        return add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())    
+
+        yield from add_two_no_touch(self.space_object1, self.space_object2, num_obj1, num_obj2, board.copy())    
     
-    def _fill_board_every(self, board, num_obj1, num_obj1_left, num_obj2_left, start_i=0):
+    def _fill_board_every(self, original_board, board, num_obj1, num_obj1_left, num_obj2_left, start_i=0):
         # num_objects: how many should be on the board starting from start_i
         # num_objects_left: how many still need to be placed
         if num_obj1 == 0:
@@ -570,34 +569,28 @@ class AdjacentRule(RelationRule):
                         # If there is already an obj2 next to it, fill with obj1 and proceed
                         board_copy = board.copy()
                         board_copy[i] = self.space_object1
-                        new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                        new_boards.extend(self._fill_board_every(original_board, board_copy, num_obj1 - 1, \
                                                                  num_obj1_left - (not is_obj1), num_obj2_left, i+1))
                     elif num_obj2_left > 0:
                         # Otherwise there must be obj2 left to use
-                        if board[i-1] is None and (i-2 < 0 or board[i-2] is not self.space_object1):
+                        if board[i-1] is None and (board[i-2] is not self.space_object1 or original_board[i-3] is self.space_object2):
                             # Do not put an obj2 on the left if there is a obj1
                             # already to the left of that, to avoid duplicate boards
-                            # Only follow this restriction if we are looking at a space object that we placed 
-                            # under this algorithm, not one that existed before: i.e. it's ok if said object 
-                            # is around the end of the board (to the back)
                             options += 1
                             board_copy = board.copy()
                             board_copy[i] = self.space_object1
                             board_copy[i-1] = self.space_object2
-                            new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                            new_boards.extend(self._fill_board_every(original_board, board_copy, num_obj1 - 1, \
                                                                      num_obj1_left - (not is_obj1), num_obj2_left - 1, i+1))
                     
-                        if board[i+1] is None and (i+2 < len(board) or board[i+2] is not self.space_object1):
+                        if board[i+1] is None and (board[i+2] is not self.space_object1 or original_board[i+3] is self.space_object2):
                             # Do not put an obj2 on the right if there is a obj1
                             # to the right of that, to avoid duplicate boards
-                            # Only follow this restriction if we are looking at a space object that we placed 
-                            # under this algorithm, not one that existed before: i.e. it's ok as long it's 
-                            # not around the end of the board (to the front)
                             options += 1
                             board_copy = board.copy()
                             board_copy[i] = self.space_object1
                             board_copy[i+1] = self.space_object2
-                            new_boards.extend(self._fill_board_every(board_copy, num_obj1 - 1, \
+                            new_boards.extend(self._fill_board_every(original_board, board_copy, num_obj1 - 1, \
                                                                      num_obj1_left - (not is_obj1), num_obj2_left - 1, i+2))
 
                 if is_obj1 and options == 0:
@@ -606,9 +599,72 @@ class AdjacentRule(RelationRule):
             
         return new_boards
     
+    def _prepare_board_every(self, board, num_obj2, lone):
+        obj2_spots = []
+        n = len(board)
+        
+        for i in lone:
+            current_spots = set()
+            if board[i-1] is None or board[i-1] is self.space_object2:
+                current_spots.add(((i-1) + n)%n)
+            if board[i+1] is None or board[i+1] is self.space_object2:
+                current_spots.add((i+1)%n)
+            obj2_spots.append(current_spots)
+                    
+        for obj2_indices in cartesian_product_sets_unique(obj2_spots):
+            num_obj2_left = num_obj2
+            board_copy = board.copy()
+            for i in obj2_indices:
+                num_obj2_left -= (board_copy[i] is not self.space_object2)
+                board_copy[i] = self.space_object2
+            if num_obj2_left >= 0:
+                yield (num_obj2_left, board_copy)
+                
+    def _add_obj1_every(self, board, num_obj1, i=0):
+        if num_obj1 == 0:
+            yield board
+            return
+        
+        if i >= len(board):
+            return
+        
+        if board[i] is None and (board[i-1] is None or board[i-1] is self.space_object2 \
+                                 or board[i+1] is None or board[i+1] is self.space_object2):
+            board_copy = board.copy()
+            board_copy[i] = self.space_object1
+            yield from self._add_obj1_every(board_copy, num_obj1 - 1, i+1)
+        yield from self._add_obj1_every(board, num_obj1, i+1)
+    
+    def _add_obj2_every(self, board, num_obj2):
+        lone = []
+        for i in range(len(board)):
+            if board[i] is self.space_object1 \
+            and board[i-1] is not self.space_object2 and board[i+1] is not self.space_object2:
+                lone.append(i)
+                
+        obj2_spots = []
+        n = len(board)
+        
+        for i in lone:
+            current_spots = set()
+            if board[i-1] is None:
+                current_spots.add(((i-1) + n)%n)
+            if board[i+1] is None:
+                current_spots.add((i+1)%n)
+            obj2_spots.append(current_spots)
+                            
+        for obj2_indices in cartesian_product_sets_no_supersets(obj2_spots):
+            num_obj2_left = num_obj2
+            board_copy = board.copy()
+            for i in obj2_indices:
+                num_obj2_left -= (board_copy[i] is not self.space_object2)
+                board_copy[i] = self.space_object2
+            if num_obj2_left >= 0:
+                yield board_copy
+                        
     def fill_board(self, board, num_objects):
         if self.qualifier is RuleQualifier.NONE:
-            return self._fill_board_none(board, num_objects)
+            yield from self._fill_board_none(board, num_objects)
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
             # Not yet supported
             return None
@@ -622,8 +678,10 @@ class AdjacentRule(RelationRule):
                     num_obj1_left -= 1
                 elif obj is self.space_object2:
                     num_obj2_left -= 1
-                
-            return self._fill_board_every(board, num_obj1, num_obj1_left, num_obj2_left)
+
+            for starting_board in self._add_obj1_every(board, num_obj1_left):
+                yield from self._add_obj2_every(starting_board, num_obj2_left)
+        
             
     def affects(self):
         if self.qualifier is RuleQualifier.NONE:

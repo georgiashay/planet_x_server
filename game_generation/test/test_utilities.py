@@ -1,24 +1,7 @@
 from planetx_game.utilities import *
 from planetx_game.board import Board
 
-def compare_unordered_list_of_lists(result, expected):
-    result_tuples = sorted([tuple([item if item is not None else "" for item in item_list]) for item_list in result])
-    expected_tuples = sorted([tuple([item if item is not None else "" for item in item_list]) for item_list in expected])
-    assert result_tuples == expected_tuples
-
-def compare_unordered_list_of_boards(result, expected):
-    result_sorted = sorted(result, key=lambda b: tuple([obj if obj is not None else "" for obj in b.objects]))
-    expected_sorted = sorted(expected, key=lambda b: tuple([obj if obj is not None else "" for obj in b.objects]))
-    assert result_sorted == expected_sorted
-    
-def rotate(lists):
-    n = len(lists[0])
-    new_lists = []
-    for i in range(n):
-        for l in lists:
-            new_lists.append(l[n-i:n] + l[:n-i])
-    return new_lists
-        
+from .assertion_utils import *
 
 # permutations_multi
 # inputs:
