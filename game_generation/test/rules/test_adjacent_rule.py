@@ -504,3 +504,261 @@ def test_fill_board_none_on_invalid():
     compare_unordered_list_of_boards(
         list(AdjacentRule("A", "B", RuleQualifier.NONE).fill_board(
             Board(["A", None, None, "A", "B", None, "C"]), {"A": 2, "B": 2})), [])
+    
+# allowed_rule
+# inputs:
+#     - self: An adjacency rule, must be valid for the given board
+#     - num_objects: A dictionary mapping objects to the number of times they should 
+#                    appear in the final board
+#     - constraints: A list of the constraints that all boards of this type must follow
+#     - other_rules: A list of the other rules already created for this board
+# output:
+#     - True if this rule can be added to the research rules for this board, False if 
+#       it is not allowed
+
+# Testing strategy:
+#     - partition: qualifier - every, at least one, none
+#     - partition: rules - total length 0, > 0
+#     - partition: rules contain equivalent rule, rules do not contain equivalent rule
+#     - partition: rules contain related rule, rules do not contain related rule
+#                  where a related rule is an adjacency rule containing obj1 or obj2
+#     - partition: rules contains related self rule, rules does not contain related self rule
+#     - partition: every adjacency defined, every adjacency not necessarily defined
+#     - partition: rule would over-constrain adjacencies, rule would not over-constrain adjacencies
+#     - partition: existing other_rule with same two objects, no existing other rule with same two objects
+#     - partition: this rule is with empty, this rule is not with empty
+#     - partition: existing self other_rule with same object, no existing self other_rule with same object
+#     - partition: allowed - yes, no (because obj1), no (because obj2), no (because both)
+
+
+# other rule with same two objects, not rule with empty
+def test_allowed_rule_existing_same_objects_not_empty():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 3, "B": 3, "C": 4},
+        [],
+        [OppositeRule("B", "A", RuleQualifier.NONE)]) == False
+
+# other rule with same two objects, rule with empty
+def test_allowed_rule_existing_same_objects_empty():
+    assert AdjacentRule("A", SpaceObject.Empty, RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 1, "B": 2, "C": 3},
+        [],
+        [WithinRule("A", SpaceObject.Empty, Precision.STRICT, 4)]) == False
+
+# self rule with same object, rule with empty
+def test_allowed_rule_existing_same_object_self_empty():
+    assert AdjacentRule("A", SpaceObject.Empty, RuleQualifier.NONE).allowed_rule(
+        {"A": 2, "B": 1, "C": 3, "D": 2},
+        [],
+        [OppositeSelfRule("A", RuleQualifier.EVERY)]) == False
+    
+# qualifier - every, no related or equivalent, adjacencies not defined, empty constraints, empty rules, allowed
+def test_allowed_rule_every_empty():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 3, "B": 4, "C": 2},
+        [],
+        []) == True
+
+# qualifier - every, contains equivalent rule, not allowed (because both)
+def test_allowed_rule_every_equivalent_rule():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 5, "C": 1, "D": 2},
+        [AdjacentRule("A", "B", RuleQualifier.EVERY)],
+        []) == False
+
+# qualifier - every, contains related rule, adjacencies not all defined, allowed
+def test_allowed_rule_every_related_rule_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 1, "B": 2, "C": 1},
+        [],
+        [AdjacentRule("A", "C", RuleQualifier.AT_LEAST_ONE)]) == True
+    
+# qualifier - every, contains related self rule, adjacencies not all defined, allowed
+def test_allowed_rule_every_related_self_rule_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 2, "C": 2},
+        [AdjacentSelfRule("A", RuleQualifier.NONE)],
+        [AdjacentRule("B", "C", RuleQualifier.EVERY)]) == True
+
+# qualifier - every, contains related rule, adjacencies not all defined, would over-constrain, not allowed (obj1)
+def test_allowed_rule_every_related_rule_over_constrain_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 4, "C": 3, "D": 2},
+        [AdjacentRule("A", "D", RuleQualifier.EVERY), AdjacentRule("A", "C", RuleQualifier.NONE)],
+        []) == False
+    
+# qualifier - every, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (obj1)
+def test_allowed_rule_every_related_self_rule_over_constrain_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 3},
+        [AdjacentSelfRule("A", RuleQualifier.EVERY)],
+        [AdjacentRule("C", "A", RuleQualifier.NONE)]) == False
+
+# qualifier - every, contains related rule, adjacencies not all defined, would over-constrain, not allowed (obj2)
+def test_allowed_rule_every_related_rule_over_constrain_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 3, "B": 2, "C": 4, "D": 1, "E": 1},
+        [AdjacentRule("B", "C", RuleQualifier.EVERY), AdjacentRule("B", "E", RuleQualifier.NONE)],
+        [AdjacentRule("B", "D", RuleQualifier.AT_LEAST_ONE)]) == False
+    
+# qualifier - every, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (obj2)
+def test_allowed_rule_every_related_self_rule_over_constrain_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 3, "C": 2, "E": 2},
+        [AdjacentRule("E", "B", RuleQualifier.NONE), AdjacentSelfRule("B", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("C", "B", RuleQualifier.EVERY)]) == False
+
+# qualifier - every, contains related rule, adjacencies not all defined, would over-constrain, not allowed (both)
+def test_allowed_rule_every_related_rule_over_constrain_both():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 1, "B": 2, "C": 3, "D": 4},
+        [AdjacentRule("A", "C", RuleQualifier.NONE), AdjacentRule("D", "B", RuleQualifier.NONE), AdjacentRule("A", "D", RuleQualifier.EVERY), AdjacentRule("B", "C", RuleQualifier.AT_LEAST_ONE)],
+        []) == False
+    
+# qualifier - every, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (both)
+def test_allowed_rule_every_related_self_rule_over_constrain_both():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).allowed_rule(
+        {"A": 2, "B": 2, "C": 3, "D": 3},
+        [AdjacentSelfRule("A", RuleQualifier.EVERY), AdjacentRule("B", "D", RuleQualifier.EVERY)],
+        [AdjacentRule("A", "C", RuleQualifier.NONE), AdjacentRule("C", "B", RuleQualifier.NONE)]) == False
+
+# qualifier - at least one, no related or equivalent, adjacencies not defined, empty constraints, empty other_rules, allowed
+def test_allowed_rule_at_least_one_empty():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 1, "B": 2, "C": 1},
+        [],
+        []) == True
+
+# qualifier - at least one, contains equivalent rule, not allowed (because both)
+def test_allowed_rule_at_least_one_equivalent():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 1, "D": 1},
+        [],
+        [AdjacentRule("B", "A", RuleQualifier.AT_LEAST_ONE)]) == False
+
+# qualifier - at least one, contains related rule, adjacencies not all defined, allowed
+def test_allowed_rule_at_least_one_related_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 2, "D": 2},
+        [AdjacentRule("C", "A", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("A", "D", RuleQualifier.EVERY)]) == True
+
+# qualifier - at least one, contains related self rule, adjacencies not all defined, allowed
+def test_allowed_rule_at_least_one_related_self_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 1},
+        [AdjacentSelfRule("A", RuleQualifier.EVERY)],
+        []) == True
+
+# qualifier - at least one, contains related rule, adjacencies not all defined, would over-constrain, not allowed (obj1)
+def test_allowed_rule_at_least_one_related_over_constrain_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 1, "C": 3, "D": 1},
+        [AdjacentRule("C", "A", RuleQualifier.EVERY)],
+        [AdjacentRule("D", "A", RuleQualifier.NONE)]) == False
+
+# qualifier - at least one, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (obj1)
+def test_allowed_rule_at_least_one_related_self_over_constrain_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 3, "C": 2, "D": 1},
+        [AdjacentSelfRule("A", RuleQualifier.NONE), AdjacentRule("A", "C", RuleQualifier.EVERY)],
+        [AdjacentRule("D", "A", RuleQualifier.AT_LEAST_ONE)]) == False
+    
+# qualifier - at least one, contains related rule, adjacencies not all defined, would over-constrain, not allowed (obj2)
+def test_allowed_rule_at_least_one_related_over_constrain_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 1, "B": 3, "C": 2, "D": 2, "E": 1},
+        [AdjacentRule("B", "C", RuleQualifier.EVERY)],
+        [AdjacentRule("D", "B", RuleQualifier.EVERY), AdjacentRule("E", "B", RuleQualifier.NONE)]) == False
+
+# qualifier - at least one, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (obj2)
+def test_allowed_rule_at_least_one_related_self_over_constrain_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 1, "D": 1, "E": 1},
+        [AdjacentSelfRule("B", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("B", "D", RuleQualifier.NONE), AdjacentRule("E", "B", RuleQualifier.AT_LEAST_ONE)]) == False
+
+# qualifier - at least one, contains related rule, adjacencies not all defined, would over-constrain, not allowed (both)
+def test_allowed_rule_at_least_one_related_over_constrain_both():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 1, "C": 3, "D": 3, "E": 2},
+        [AdjacentRule("A", "C", RuleQualifier.EVERY), AdjacentRule("B", "C", RuleQualifier.EVERY), AdjacentRule("B", "E", RuleQualifier.NONE)],
+        [AdjacentRule("D", "A", RuleQualifier.AT_LEAST_ONE), AdjacentRule("E", "A", RuleQualifier.NONE)]) == False
+
+# qualifier - at least one, contains related self rule, adjacencies not all defined, would over-constrain, not allowed (both)
+def test_allowed_rule_at_least_one_related_self_over_constrain_both():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 3, "D": 2, "E": 1, "F": 1},
+        [AdjacentSelfRule("A", RuleQualifier.NONE), AdjacentSelfRule("B", RuleQualifier.EVERY)],
+        [AdjacentRule("A", "C", RuleQualifier.EVERY), AdjacentRule("D", "A", RuleQualifier.EVERY), AdjacentRule("B", "C", RuleQualifier.AT_LEAST_ONE), AdjacentRule("B", "F", RuleQualifier.NONE)]) == False
+
+
+# qualifier - none, no related or equivalent, adjacencies not defined, empty constraints, empty other_rules, allowed
+def test_allowed_rule_none_empty():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 1, "B": 1},
+        [],
+        []) == True
+
+# qualifier - none, contains equivalent rule, not allowed (because both)
+def test_allowed_rule_none_equivalent():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 2, "B": 1, "C": 2},
+        [],
+        [AdjacentRule("B", "A", RuleQualifier.NONE)]) == False
+
+# qualifier - none, contains related rule, adjacencies not all defined, allowed
+def test_allowed_rule_none_related_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 3, "B": 2, "C": 1, "D": 1},
+        [AdjacentRule("A", "C", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("D", "A", RuleQualifier.EVERY)]) == True
+
+# qualifier - none, contains related self rule, adjacencies not all defined, allowed 
+def test_allowed_rule_none_related_self_allowed():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 2, "B": 3, "C": 2, "D": 2, "E": 1},
+        [AdjacentSelfRule("A", RuleQualifier.EVERY)],
+        [AdjacentRule("C", "A", RuleQualifier.AT_LEAST_ONE)]) == True
+
+# qualifier - none, contains related rule, adjacencies all defined, not allowed (because obj1)
+def test_allowed_rule_none_related_fully_defined_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 2, "B": 3, "C": 1, "D": 2, "E": 1},
+        [AdjacentRule("A", "C", RuleQualifier.EVERY), AdjacentRule("D", "A", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("A", "E", RuleQualifier.AT_LEAST_ONE)]) == False
+
+# qualifier - none, contains related self rule, adjacencies all defined, not allowed (because obj1)
+def test_allowed_rule_none_related_self_fully_defined_obj1():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 4, "B": 1, "C": 3, "D": 2},
+        [AdjacentSelfRule("A", RuleQualifier.EVERY), AdjacentRule("A", "C", RuleQualifier.EVERY)],
+        []) == False
+
+# qualifier - none, contains related rule, adjacencies all defined, not allowed (because obj2)
+def test_allowed_rule_none_related_fully_defined_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 3, "B": 2, "C": 2, "D": 2, "E": 1},
+        [AdjacentRule("C", "B", RuleQualifier.EVERY), AdjacentRule("B", "D", RuleQualifier.AT_LEAST_ONE)],
+        [AdjacentRule("E", "B", RuleQualifier.AT_LEAST_ONE)]) == False
+
+# qualifier - none, contains related self rule, adjacencies all defined, not allowed (because obj2)
+def test_allowed_rule_none_related_self_fully_defined_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 2, "B": 2, "C": 1, "D": 3},
+        [AdjacentSelfRule("B", RuleQualifier.EVERY)],
+        [AdjacentRule("B", "D", RuleQualifier.EVERY)]) == False
+
+# qualifier - none, contains related rule, adjacencies all defined, not allowed (because both)
+def test_allowed_rule_none_related_fully_defined_both():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 1, "B": 2, "C": 1, "D": 2},
+        [AdjacentRule("D", "A", RuleQualifier.EVERY), AdjacentRule("B", "C", RuleQualifier.EVERY)],
+        [AdjacentRule("D", "B", RuleQualifier.EVERY)]) == False
+
+# qualifier - none, contains related self rule, adjacencies all defined, not allowed (because both)
+def test_allowed_rule_none_related_self_fully_defined_both():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).allowed_rule(
+        {"A": 1, "B": 2, "C": 2, "D": 3, "E": 1},
+        [AdjacentRule("C", "A", RuleQualifier.EVERY), AdjacentSelfRule("B", RuleQualifier.AT_LEAST_ONE), AdjacentRule("B", "D", RuleQualifier.AT_LEAST_ONE), AdjacentRule("E", "B", RuleQualifier.AT_LEAST_ONE)],
+        []) == False
