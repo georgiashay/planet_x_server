@@ -762,3 +762,86 @@ def test_allowed_rule_none_related_self_fully_defined_both():
         {"A": 1, "B": 2, "C": 2, "D": 3, "E": 1},
         [AdjacentRule("C", "A", RuleQualifier.EVERY), AdjacentSelfRule("B", RuleQualifier.AT_LEAST_ONE), AdjacentRule("B", "D", RuleQualifier.AT_LEAST_ONE), AdjacentRule("E", "B", RuleQualifier.AT_LEAST_ONE)],
         []) == False
+    
+# generate_rule
+# inputs:
+#     - board: The board to generate a rule for
+#     - constraints: The existing constraints for this type of board
+#     - other_rules: The already constructed research rules for this board
+#     - space_object1: The object to generate the adjacent rule about
+#     - space_object2: The object to relate to space_object1 in this rule
+# output:
+#     - A rule relating space_object1 to space_object2 by adjacency, or
+#       None if no such rule can be generated
+
+# Testing strategy:
+#     - partition: rule not allowed based on previous rules, rule allowed based on previous rules
+#     - partition: # obj1s adjacent to obj2: 0, some, all
+#     - partition: # obj1s: = 1, > 1
+#     - partition: # obj1 = 2 * # obj2, # obj1 != 2 * # obj2
+
+# rule not allowed based on previous rules
+def test_generate_rule_not_allowed():
+    assert AdjacentRule.generate_rule(
+        Board(["B", "A", "C", "A", "D", "E", "E", "F"]),
+        [AdjacentRule("E", "A", RuleQualifier.NONE)],
+        [AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE), AdjacentRule("D", "A", RuleQualifier.EVERY)],
+        "A", "B") == None
+
+# 0 obj1s adjacent, # obj1s = 1
+def test_generate_rule_none_adjacent_one_object():
+    assert AdjacentRule.generate_rule(
+        Board(["C", "A", "D", "E", "E", "B"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.NONE)
+
+# 0 obj1s adjacent, # obj1s > 1, obj1 != 2 * obj2
+def test_generate_rule_none_adjacent_multiple_objects():
+    assert AdjacentRule.generate_rule(
+        Board(["D", "D", "A", "C", "B", "D", "A", "E", "A"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.NONE)
+
+# 0 obj1s adjacent, # obj1s > 1, obj1 = 2 * obj2
+def test_generate_rule_none_adjacent_twice_obj2():
+    assert AdjacentRule.generate_rule(
+        Board(["D", "A", "C", "C", "B", "E", "A"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.NONE)
+
+# some obj1s adjacent, # obj1s > 1, obj1 != 2 * obj2
+def test_generate_rule_some():
+    assert AdjacentRule.generate_rule(
+        Board(["D", "A", "B", "A", "C", "A", "E", "E", "A"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE)
+
+# some obj1s adjacent, # obj1s > 1, obj1 = 2 * obj2
+def test_generate_rule_some_twice_obj2():
+    assert AdjacentRule.generate_rule(
+        Board(["A", "B", "A", "C", "C", "E", "A", "A", "D", "B", "F"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE)
+
+# all obj1s adjacent, # obj1s = 1
+def test_generate_rule_all_one():
+    assert AdjacentRule.generate_rule(
+        Board(["D", "A", "B", "C", "D"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.EVERY)
+
+# all obj1s adjacent, # obj1s > 1, obj1 != 2 * obj2
+def test_generate_rule_all_many():
+    rule = AdjacentRule.generate_rule(
+        Board(["A", "B", "A", "E", "D", "B", "A", "D"]),
+        [], [], "A", "B")
+    
+    assert (rule == AdjacentRule("A", "B", RuleQualifier.EVERY) or \
+            rule == AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE))
+
+# all obj1s adjacent, # obj1s > 1, obj1 = 2 * obj2
+def test_generate_rule_all_many_twice_obj2():
+    assert AdjacentRule.generate_rule(
+        Board(["C", "A", "B", "A", "D", "A", "B", "A", "E", "F"]),
+        [], [], "A", "B") == \
+    AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE)

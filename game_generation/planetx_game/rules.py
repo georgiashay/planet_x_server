@@ -314,28 +314,29 @@ class Rule(ABC):
     def __hash__(self):
         return hash(self.code())
     
-    def rule_types_allowed(self, num_objects, rules, rule_type, self_rule_type, spots_per_obj):
-        num_spots_uncovered = [spots_per_obj * num_objects[obj] for obj in self.space_objects()]
-        has_none_rule = [False] * len(self.space_objects())
+    @classmethod
+    def rule_types_allowed(cls, num_objects, space_objects, rules, rule_type, self_rule_type, spots_per_obj):
+        num_spots_uncovered = [spots_per_obj * num_objects[obj] for obj in space_objects]
+        has_none_rule = [False] * len(space_objects)
         
         for rule in rules:
             if isinstance(rule, rule_type) or isinstance(rule, self_rule_type):
-                shared_objects = set(rule.space_objects()) & set(self.space_objects())
+                shared_objects = set(rule.space_objects()) & set(space_objects)
                 
-                if set(rule.space_objects()) - {SpaceObject.Empty} == set(self.space_objects()) - {SpaceObject.Empty}:
+                if set(rule.space_objects()) - {SpaceObject.Empty} == set(space_objects) - {SpaceObject.Empty}:
                     return False, False, False
                 
                 if len(shared_objects) > 0:
                     if rule.qualifier is RuleQualifier.NONE:
-                        for i, obj in enumerate(self.space_objects()):
+                        for i, obj in enumerate(space_objects):
                             if obj in shared_objects:
                                 has_none_rule[i] = True
                     elif rule.qualifier is RuleQualifier.EVERY:
-                        for i, obj in enumerate(self.space_objects()):
+                        for i, obj in enumerate(space_objects):
                             if obj in shared_objects:
                                 num_spots_uncovered[i] -= num_objects[rule.space_objects()[0]]
                     elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                        for i, obj in enumerate(self.space_objects()):
+                        for i, obj in enumerate(space_objects):
                             if obj in shared_objects:
                                 if isinstance(rule, rule_type):
                                     num_spots_uncovered[i] -= 1
@@ -350,13 +351,13 @@ class Rule(ABC):
             if spots_uncovered == 0:
                 allowed_none_rule = False
                 
-            every_increase = num_objects[self.space_objects()[0]]
+            every_increase = num_objects[space_objects[0]]
             if spots_uncovered < every_increase or (spots_uncovered == every_increase and has_none_rule[i]):
                 allowed_every_rule = False
-                            
-            if isinstance(self, rule_type):
+                
+            if cls == rule_type:
                 at_least_one_increase = 1
-            elif isinstance(self, self_rule_type):
+            elif cls == self_rule_type:
                 at_least_one_increase = 2
                                 
             if spots_uncovered < at_least_one_increase or (spots_uncovered == at_least_one_increase and has_none_rule[i]):
@@ -761,7 +762,7 @@ class AdjacentRule(RelationRule):
                 return False
             
         allowed_none_rule, allowed_at_least_one_rule, allowed_every_rule = \
-        self.rule_types_allowed(num_objects, constraints + other_rules, AdjacentRule, AdjacentSelfRule, 2)
+        self.rule_types_allowed(num_objects, self.space_objects(), constraints + other_rules, AdjacentRule, AdjacentSelfRule, 2)
        
         if not allowed_none_rule and self.qualifier is RuleQualifier.NONE:
             return False
@@ -778,55 +779,17 @@ class AdjacentRule(RelationRule):
     def generate_rule(cls, board, constraints, other_rules, space_object1, space_object2):
         num_object1 = board.num_objects()[space_object1]
         num_object2 = board.num_objects()[space_object2]
+        space_objects = [space_object1, space_object2]
         
-        # Some are already constrained, don't generate these rules
-        prev_rules = constraints + other_rules
-        num_spots_uncovered = 2 * num_object1
-        has_none_rule = False
-        
-        for rule in constraints:
-            # Don't allow adjacency rules with the same two objects as an existing constraint
-            if isinstance(rule, cls) and rule == cls(space_object1, space_object2, rule.qualifier):
+        for rule in other_rules:
+            if set(space_objects) - {SpaceObject.Empty} == set(space_objects) - {SpaceObject.Empty}:
                 return None
             
-        for rule in other_rules:
-            # Don't allow relation rules with the same two objects as an existing rule
-            if isinstance(rule, cls) and (rule.space_object1 == space_object1 or rule.space_object2 == space_object1) \
-            and rule.qualifier is RuleQualifier.NONE:
-                has_none_rule = True
-            # Don't allow self rules with object1 if I am a rule with Empty as the second object
-            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == space_object1 \
-            and rule.qualifier is RuleQualifier.NONE:
-                has_none_rule = True
+        allowed_none_rule, allowed_at_least_one_rule, allowed_every_rule = \
+        cls.rule_types_allowed(board.num_objects(), space_objects, constraints + other_rules, AdjacentRule, AdjacentSelfRule, 2)
             
-        for rule in prev_rules:
-            # Set the number of spots adjacent to the space_object1's that could be any 
-            # object, not just those defined in previous adjacency rules
-            if isinstance(rule, cls) and rule.space_object1 == space_object1:
-                if rule.qualifier is RuleQualifier.EVERY:
-                    num_spots_uncovered -= num_object1
-                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 1
-            elif isinstance(rule, cls) and rule.space_object2 == space_object1: 
-                if rule.qualifier is RuleQualifier.EVERY:
-                    num_spots_uncovered -= (board.num_objects()[rule.space_object2] + 1) // 2
-                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 1
-            elif isinstance(rule, AdjacentSelfRule) and rule.space_object == space_object1:
-                if rule.qualifier is RuleQualifier.EVERY:
-                    num_spots_uncovered -= num_object1
-                elif rule.qualifier is RuleQualifier.AT_LEAST_ONE:
-                    num_spots_uncovered -= 2
-
-        # Adjacenct objects already totally defined, redundant to create another rule
-        if num_spots_uncovered <= 0:
+        if not allowed_none_rule and not allowed_at_least_one_rule and not allowed_every_rule:
             return None
-            
-        # If we create an every rule, it will define num_object1 more objects adjacent to object 2
-        # We should only do this if this wouldn't over-define adjacent objects
-        can_generate_every = (num_spots_uncovered > num_object1) or (not has_none_rule)
-        # If we create an "at least one" rule, it will define 1 more object adjacent to object 2
-        can_generate_at_least_one = (num_spots_uncovered > 1) or (not has_none_rule)
         
         num_adjacent = 0
         num_any_adjacent = 0
@@ -857,18 +820,22 @@ class AdjacentRule(RelationRule):
             qualifier_options = [option for option in qualifier_options \
                                 if option is not RuleQualifier.AT_LEAST_ONE]
         
-        # Finding one object2 finds all object1s
+        # Finding the object1s finds all the object2s
         if num_object1 >= 2 * num_object2:
             qualifier_options = [option for option in qualifier_options \
                                 if option is not RuleQualifier.EVERY]
         
-        if not can_generate_every:
+        if not allowed_every_rule:
             qualifier_options = [option for option in qualifier_options \
                                  if option is not RuleQualifier.EVERY]
             
-        if not can_generate_at_least_one:
+        if not allowed_at_least_one_rule:
             qualifier_options = [option for option in qualifier_options \
                                  if option is not RuleQualifier.AT_LEAST_ONE]
+            
+        if not allowed_none_rule:
+            qualifier_options = [option for option in qualifier_options \
+                                 if option is not RuleQualifier.NONE]
         
         if len(qualifier_options) == 0:
             return None
