@@ -995,3 +995,46 @@ def test_base_strength_none_one_many_obj1_fewer_obj2():
 # qualifier - none, strength = 1, # obj1 > 1, # obj2 > # obj1
 def test_base_strength_none_one_many_obj1_more_obj2():
     assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "C", "A", "D", "B", "D", "A", "A", "E"])) == 1
+    
+# code
+# inputs:
+#     - self: An adjacent rule
+# outputs:
+#     - A four character string code representing the adjacent rule
+
+# Testing Strategy:
+#     - partition: qualifier - every, at least one, none
+
+# qualifier - every
+def test_code_every():
+    assert AdjacentRule(SpaceObject.Asteroid, SpaceObject.Comet, RuleQualifier.EVERY).code() == "AACE"
+
+# qualifier - at least one
+def test_code_at_least_one():
+    assert AdjacentRule(SpaceObject.DwarfPlanet, SpaceObject.Empty, RuleQualifier.AT_LEAST_ONE).code() == "ADEA"
+
+# qualifier - none
+def test_code_none():
+    assert AdjacentRule(SpaceObject.GasCloud, SpaceObject.PlanetX, RuleQualifier.NONE).code() == "AGXN"
+    
+
+# parse
+# inputs:
+#     - s: A four letter string code representing an adjacent rule
+# output:
+#     - The adjacent rule represented by the code
+
+# Testing strategy:
+#     - partition: qualifier - every, at least one, none
+
+# qualifier - every
+def test_parse_every():
+    assert Rule.parse("ACGE") == AdjacentRule(SpaceObject.Comet, SpaceObject.GasCloud, RuleQualifier.EVERY)
+    
+# qualifier - at least one
+def test_parse_at_least_one():
+    assert Rule.parse("ADAA") == AdjacentRule(SpaceObject.DwarfPlanet, SpaceObject.Asteroid, RuleQualifier.AT_LEAST_ONE)
+
+# qualifier - none
+def test_parse_none():
+    assert Rule.parse("AXBN") == AdjacentRule(SpaceObject.PlanetX, SpaceObject.BlackHole, RuleQualifier.NONE)
