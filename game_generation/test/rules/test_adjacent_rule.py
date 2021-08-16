@@ -845,3 +845,153 @@ def test_generate_rule_all_many_twice_obj2():
         Board(["C", "A", "B", "A", "D", "A", "B", "A", "E", "F"]),
         [], [], "A", "B") == \
     AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE)
+
+
+# base_strength
+# inputs:
+#     - self: An AdjacentRule
+#     - board: A board to evaluate the strength for
+# output:
+#     - A number 0-1 representing how strong the rule is. It is proportional to the number of scenarios
+#       eliminated for the positions of object1, considering where object2 is. 0 means no scenarios are
+#       eliminated considering this rule, and 1 means every scenario but one (the correct one) is eliminated
+#       by this rule
+
+# Testing strategy:
+#     - partition: strength = 0, 0 < strength < 1, strength = 1
+#     - partition: # obj1 = 1, > 1
+#     - partition: # obj2 = obj1, < obj1, > obj1
+#     - partition: qualifier - every, at least one, none
+
+# qualifier - every, strength = 0, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_every_zero_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["C", "A", "B"])) == 0
+
+# qualifier - every, strength = 0, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_every_zero_one_obj1_many_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "B", "B"])) == 0
+#     assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "B", "B", "C"])) == 0
+    
+# qualifier - every, strength = 0, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_every_zero_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["B", "C", "B", "A", "A"])) == 0
+
+# qualifier - every, strength = 0, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_every_zero_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "A", "B"])) == 0
+
+# qualifier - every, strength = 0, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_every_zero_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "B", "A", "D", "B", "A"])) == 0
+
+# qualifier - every, 0 < strength < 1, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_every_mid_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "B", "C", "D", "E"])) == pytest.approx(2/3)
+
+# qualifier - every, 0 < strength < 1, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_every_mid_one_obj1_many_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["B", "C", "D", "A", "B", "E", "C", "C"])) == pytest.approx(2/5)
+
+# qualifier - every, 0 < strength < 1, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_every_mid_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "A", "B", "C", "D", "D", "C", "B"])) == pytest.approx(9/14)
+
+# qualifier - every, 0 < strength < 1, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_every_mid_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["A", "B", "A", "C", "C", "A", "B", "D", "E"])) == pytest.approx(31/34)
+
+# qualifier - every, 0 < strength < 1, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_every_mid_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["B", "B", "D", "A", "B", "A", "E", "E"])) == pytest.approx(4/9)
+
+# qualifier - every, strength = 1, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_every_one_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["C", "A", "B", "B", "A", "E", "D"])) == 1
+
+# qualifier - every, strength = 1, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_every_one_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["C", "C", "A", "B", "A", "B", "A", "D"])) == 1
+
+# qualifier - every, strength = 1, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_every_one_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.EVERY).base_strength(Board(["B", "B", "A", "D", "E", "A", "B"])) == 1
+
+# qualifier - at least one, strength = 0, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_at_least_one_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["A", "C", "B"])) == 0
+
+# qualifier - at least one, strength = 0, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_at_least_one_one_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["B", "C", "C", "B", "D", "B", "A"])) == 0
+
+# qualifier - at least one, strength = 0, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_at_least_one_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["B", "A", "C", "E", "B", "A"])) == 0
+
+# qualifier - at least one, strength = 0, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_at_least_one_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["D", "A", "B", "A"])) == 0
+
+# qualifier - at least one, strength = 0, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_at_least_one_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["A", "A", "B", "C", "B", "B", "D"])) == 0
+
+# qualifier - at least one, 0 < strength < 1, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_at_least_one_mid_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["C", "A", "B", "C", "D", "E"])) == pytest.approx(3/4)
+
+# qualifier - at least one, 0 < strength < 1, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_at_least_one_mid_one_obj1_many_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["B", "C", "D", "E", "F", "B", "A"])) == pytest.approx(2/4)
+
+# qualifier - at least one, 0 < strength < 1, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_at_least_one_mid_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["A", "B", "C", "C", "D", "A", "B", "D"])) == pytest.approx(1/14)
+
+# qualifier - at least one, 0 < strength < 1, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_at_least_one_mid_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["B", "C", "A", "D", "E", "D", "A"])) == pytest.approx(6/14)
+
+# qualifier - at least one, 0 < strength < 1, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_at_least_one_mid_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.AT_LEAST_ONE).base_strength(Board(["B", "A", "B", "B", "A", "C", "C", "D", "E", "F"])) == pytest.approx(6/20)
+
+# qualifier - none, 0 < strength < 1, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_none_mid_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["C", "B", "D", "E", "A"])) == pytest.approx(2/3)
+
+# qualifier - none, 0 < strength < 1, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_none_mid_one_obj1_many_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "C", "B", "D", "A", "A", "E", "D"])) == pytest.approx(12/14) 
+
+# qualifier - none, 0 < strength < 1, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_none_mid_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "D", "E", "B", "C", "A", "E", "A", "F", "F"])) == pytest.approx(22/27)
+
+# qualifier - none, 0 < strength < 1, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_none_mid_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["D", "B", "C", "C", "A", "F", "E", "A"])) == pytest.approx(11/20)
+
+# qualifier - none, 0 < strength < 1, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_none_mid_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["D", "B", "B", "C", "E", "D", "B", "F", "A", "F", "A"])) == pytest.approx(22/27)
+
+# qualifier - none, strength = 1, # obj1 = 1, # obj2 = # obj1
+def test_base_strength_none_one_one_obj1_one_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["C", "B", "C", "A"])) == 1
+
+# qualifier - none, strength = 1, # obj1 = 1, # obj2 > # obj1
+def test_base_strength_none_one_one_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "C", "B", "D", "A", "D"])) == 1
+
+# qualifier - none, strength = 1, # obj1 > 1, # obj2 = # obj1
+def test_base_strength_none_one_many_obj1_same_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "B", "C", "A", "A", "D"])) == 1
+
+# qualifier - none, strength = 1, # obj1 > 1, # obj2 < # obj1
+def test_base_strength_none_one_many_obj1_fewer_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["A", "C", "B", "D", "A"])) == 1
+
+# qualifier - none, strength = 1, # obj1 > 1, # obj2 > # obj1
+def test_base_strength_none_one_many_obj1_more_obj2():
+    assert AdjacentRule("A", "B", RuleQualifier.NONE).base_strength(Board(["B", "C", "A", "D", "B", "D", "A", "A", "E"])) == 1

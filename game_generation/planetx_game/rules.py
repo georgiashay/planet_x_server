@@ -462,14 +462,23 @@ class RelationRule(Rule):
         if self.qualifier is RuleQualifier.NONE:
             valid_combos = comb(num_positions - num_positive_positions, num_object1)
             invalid_combos = total_combos - valid_combos
-            return invalid_combos/(total_combos - 1)
+            if total_combos > 1:
+                return invalid_combos/(total_combos - 1)
+            else:
+                return 0
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
             invalid_combos = comb(num_positions - num_positive_positions, num_object1)
-            return invalid_combos/(total_combos - 1)
+            if total_combos > 1:
+                return invalid_combos/(total_combos - 1)
+            else:
+                return 0
         elif self.qualifier is RuleQualifier.EVERY:
             valid_combos = comb(num_positive_positions, num_object1)
             invalid_combos = total_combos - valid_combos
-            return invalid_combos/(total_combos - 1)
+            if total_combos > 1:
+                return invalid_combos/(total_combos - 1)
+            else:
+                return 0
         
         
 class SelfRule(Rule):
