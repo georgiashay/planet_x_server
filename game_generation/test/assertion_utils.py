@@ -8,8 +8,6 @@ def compare_unordered_list_of_lists(result, expected):
 def compare_unordered_list_of_boards(result, expected):
     result_sorted = sorted(result, key=lambda b: tuple([obj if obj is not None else "" for obj in b.objects]))
     expected_sorted = sorted(expected, key=lambda b: tuple([obj if obj is not None else "" for obj in b.objects]))
-    print(result_sorted)
-    print(expected_sorted)
     assert result_sorted == expected_sorted
     
 def rotate(lists):

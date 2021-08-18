@@ -358,21 +358,20 @@ def cartesian_product_tuples(l):
         for val in l[0]:
             for p in cartesian_product_tuples(l[1:]):
                 yield (val,) + p
-
+                
 def _cartesian_product_sets_no_supersets_with_dups(l):
     for p in cartesian_product_tuples(l):
         result_set = set(p)
         allowed = True
-        for i in range(len(l)):
-            unchosen = l[i] - result_set
-            if len(l[i]) - len(unchosen) > 1:
-                other_values = p[:i] + p[i+1:]
-                if p[i] not in other_values:
-                    allowed = False
-                    break
+        for val in result_set:
+            without_val = result_set - {val}
+            # It's not minimal if it would still work with a value removed
+            if all(any(x in without_val for x in l[i]) for i in range(len(l))):
+                allowed = False
+                break
         if allowed:
             yield result_set
-                
+    
 def cartesian_product_sets_no_supersets(l):
     return { tuple(sorted(choice)) for choice in _cartesian_product_sets_no_supersets_with_dups(l) }
     

@@ -1156,3 +1156,102 @@ def test_calc_partitions_minimum_four_has_order():
         [6, 6],
         [12]])
         
+# cartesian_product_sets_no_supersets
+# inputs
+#     - l: A list of sets of numbers
+# output
+#     - A set of all ordered tuples such that a number from each set in l is included in the set, but also
+#       such that each tuple is minimal - i.e. no tuple represents a superset of the values in another tuple
+
+# Testing Strategy:
+#     - partition: duplicates contained across sets in l, no duplicates
+#     - partition: output length: 0, 1, > 1
+#     - partition: l length: 0, 1, 2, > 2
+#     - partition: # of minimal subsets with supersets: 0, 1, > 1
+
+
+# l - length 0, no duplicates, output length = 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_input_zero():
+    assert cartesian_product_sets_no_supersets([]) == {tuple()}
+
+# l - length 1, no duplicates, output length = 0, 0 subsets
+def test_cartesian_product_sets_no_supersets_input_one_output_zero():
+    assert cartesian_product_sets_no_supersets([set()]) == set() 
+
+# l - length 1, no duplicates, output length = 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_input_one_output_one():
+    assert cartesian_product_sets_no_supersets([{3}]) == {(3,)}
+
+# l - length 1, no duplicates, output length > 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_input_one_output_multiple():
+    assert cartesian_product_sets_no_supersets([{2, 5, 6}]) == {(2,), (5,), (6,)}
+
+# l - length 2, no duplicates, output length = 0, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_two_output_zero():
+    assert cartesian_product_sets_no_supersets([set(), {4, 5}]) == set()
+
+# l - length 2, no duplicates, output length = 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_two_output_one():
+    assert cartesian_product_sets_no_supersets([{4}, {7}]) == {(4, 7)}
+
+# l - length 2, no duplicates, output length > 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_two_output_multiple():
+    assert cartesian_product_sets_no_supersets([{3, 4, 8}, {1, 9}]) == {
+        (1, 3),
+        (1, 4),
+        (1, 8),
+        (3, 9),
+        (4, 9),
+        (8, 9)}
+
+# l - length 2, duplicates, output length = 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_duplicates_input_two_output_one_no_subsets():
+    assert cartesian_product_sets_no_supersets([{4}, {4}]) == {(4,)}
+    
+# l - length 2, duplicates, output length = 1, 1 subset
+def test_cartesian_product_sets_no_supersets_duplicates_input_two_output_one_one_subset():
+    assert cartesian_product_sets_no_supersets([{6}, {3, 6}]) == {(6,)}
+
+# l - length 2, duplicates, output length = 1, > 1 subset
+def test_cartesian_product_sets_no_supersets_duplicates_input_two_output_one_multiple_subsets():
+    assert cartesian_product_sets_no_supersets([{2}, {2, 3, 5}]) == {(2,)}
+    
+# l - length 2, duplicates, output length > 1, 1 subset
+def test_cartesian_product_sets_no_supersets_duplicates_input_two_output_multiple_one_subset():
+    assert cartesian_product_sets_no_supersets([{1, 2}, {1, 3, 5}]) == {(1,), (2, 3), (2, 5)}
+
+# l - length 2, duplicates, output length > 1, > 1 subsets
+def test_cartesian_product_sets_no_supersets_duplicates_input_two_output_multiple_multiple_subsets():
+    assert cartesian_product_sets_no_supersets([{1, 2, 5}, {1, 4, 5}]) == {(1,), (5,), (2, 4)}
+
+# l - length > 2, no duplicates, output length = 0, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_multiple_output_zero():
+    assert cartesian_product_sets_no_supersets([{2, 3}, set(), {6}]) == set()
+
+# l - length > 2, no duplicates, output length = 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_multiple_output_one():
+    assert cartesian_product_sets_no_supersets([{1}, {3}, {5}]) == {(1, 3, 5)}
+
+# l - length > 2, no duplicates, output length > 1, 0 subsets
+def test_cartesian_product_sets_no_supersets_no_duplicates_input_multiple_output_multiple():
+    assert cartesian_product_sets_no_supersets([{2}, {4, 5}, {1, 6}]) == {(1, 2, 4), (1, 2, 5), (2, 4, 6), (2, 5, 6)}
+
+# l - length > 2, duplicates, output length = 0, 0 subsets
+def test_cartesian_product_sets_no_supersets_duplicates_input_multiple_output_zero():
+    assert cartesian_product_sets_no_supersets([{3}, set(), {2, 3, 4}]) == set()
+
+# l - length > 2, duplicates, output length = 1, 1 subset
+def test_cartesian_product_sets_no_supersets_duplicates_input_multiple_output_one_one_subset():
+    assert cartesian_product_sets_no_supersets([{1, 7}, {1, 3}, {4}, {7}]) == {(1, 4, 7), (3, 4, 7)}
+
+# l - length > 2, duplicates, output length = 1, > 1 subsets
+def test_cartesian_product_sets_no_supersets_duplicates_input_multiple_output_one_multiple_subsets():
+    assert cartesian_product_sets_no_supersets([{1}, {1, 3}, {1, 2, 3}]) == {(1,)}
+    
+# l - length > 2, duplicates, output length > 1, 1 subset
+def test_cartesian_product_sets_no_supersets_duplicates_input_multiple_output_multiple_one_subset():
+    assert cartesian_product_sets_no_supersets([{1}, {2, 3}, {4, 5}, {4, 6}]) == {(1, 2, 4), (1, 3, 4), (1, 2, 5, 6), (1, 3, 5, 6)}
+
+# l - length > 2, duplicates, output length > 1, > 1 subsets
+def test_cartesian_product_sets_no_supersets_duplicates_input_multiple_output_multiple_multiple_subsets():
+    assert cartesian_product_sets_no_supersets([{2, 3}, {6}, {3, 5}, {2, 4, 5}]) == {(2, 3, 6), (2, 5, 6), (3, 4, 6), (3, 5, 6)}
