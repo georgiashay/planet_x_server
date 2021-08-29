@@ -95,7 +95,7 @@ class EliminationClue {
   }
 
   text(theme) {
-    return "Sector " + (this.sectorNumber + 1) + " does not contain " +
+    return sectorName[theme].proper + " " + (this.sectorNumber + 1) + " does not contain " +
             this.eliminatedObject[theme].one + " " + this.eliminatedObject[theme].name + ".";
   }
 
@@ -264,6 +264,27 @@ class SectorElement {
     }
   }
 }
+
+const sectorName = {
+  "space": {
+    name: "sector",
+    plural: "sectors",
+    proper: "Sector",
+    properPlural: "Sectors"
+  },
+  "ocean": {
+    name: "sector",
+    plural: "sectors",
+    proper: "Sector",
+    properPlural: "Sectors"
+  },
+  "castle": {
+    name: "seat",
+    plural: "seats",
+    proper: "Seat",
+    properPlural: "Seats"
+  }
+};
 
 class Board {
   constructor(objects) {
@@ -606,7 +627,7 @@ class WithinRule extends RelationRule {
     const numObject2 = board.numObjects[this.spaceObject2.NAME];
 
     return this.qualifier.forObject(this.spaceObject1[theme], numObject1) + " within "
-            + this.numSectors + " sectors of " + this.spaceObject2[theme].anyOf(numObject2) + ".";
+            + this.numSectors + " " + sectorName[theme].plural + " of " + this.spaceObject2[theme].anyOf(numObject2) + ".";
   }
 
   shortText(board, theme) {
@@ -797,7 +818,7 @@ class SectorsRule extends SelfRule {
   }
 
   text(board, theme) {
-    return "The " + this.spaceObject[theme].plural() + " are only in sectors "
+    return "The " + this.spaceObject[theme].plural() + " are only in " + sectorName[theme].plural + " "
             + this.positions.map((i) => i+1).join(", ") + ".";
   }
 
