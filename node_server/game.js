@@ -868,7 +868,7 @@ class BoardType {
 const SECTOR_TYPES = {
   12: new BoardType(12, {Goal: 1, Empty: 2, NeedsSpace: 2, Banded: 1, Clustered: 4, Prime: 2}, {Clustered: 2, Prime: 3, NeedsSpace: 4, Banded: 4}, 3, [8], 1, 2),
   18: new BoardType(18, {Goal: 1, Empty: 5, NeedsSpace: 2, Banded: 4, Clustered: 4, Prime: 2}, {Clustered: 2, Prime: 3, NeedsSpace: 4, Banded: 2}, 3, [6, 15], 2, 2),
-  24: new BoardType(24, {Goal: 1, Empty: 6, NeedsSpace: 3, Banded: 4, Clustered: 6, Prime: 3, Surrounded: 1}, {Clustered: 2, Banded: 2, Prime: 3, NeedsSpace: 4, Banded: 5}, 3, [6, 15, 21], 2, 3)
+  24: new BoardType(24, {Goal: 1, Empty: 6, NeedsSpace: 3, Banded: 4, Clustered: 6, Prime: 3, Surrounded: 1}, {Clustered: 2, Banded: 2, Prime: 3, NeedsSpace: 4, Banded: 5, Surrounded: 5}, 3, [6, 15, 21], 2, 3)
 };
 
 module.exports = {
