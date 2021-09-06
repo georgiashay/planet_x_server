@@ -214,9 +214,9 @@ app.post("/startSession/", function(req, res, next) {
 app.post("/submitTheories/", function(req, res, next) {
   const sessionID = parseInt(req.query.sessionID);
   const playerID = parseInt(req.query.playerID);
-  const theories = req.body.theories.map((t) => Theory.fromJson(t));
   const turn = req.body.turn;
   const theme = req.body.theme || "space";
+  const theories = req.body.theories.map((t) => Theory.fromJson(t, theme));
   sessionManager.submitTheories(sessionID, playerID, theories, turn).then(({ allowed, successfulTheories}) => {
     console.log(JSON.stringify({level: "info", action: "Submit Theories", sessionID, playerID, theories: theories.map((t) => t.json(theme)), allowed: allowed, successfulTheories: successfulTheories.map((t) => t.json(theme))}));
     res.json({

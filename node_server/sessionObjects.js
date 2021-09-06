@@ -383,8 +383,8 @@ class Theory {
     }
   }
 
-  static fromJson(obj) {
-    return new Theory(SectorElement.parse(obj.spaceObject), obj.sector);
+  static fromJson(obj, theme="space") {
+    return new Theory(SectorElement.parse(obj.spaceObject, theme), obj.sector);
   }
 }
 
