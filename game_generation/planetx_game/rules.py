@@ -1047,8 +1047,8 @@ class OppositeRule(RelationRule):
         for i in range(start_i, len(board)):
             obj = board[i]
             is_obj1 = obj is self.space_object1
-            if obj is None or is_obj1:
-                already_opp = (board[i + half] is self.space_object2)
+            already_opp = board[i + half] is self.space_object2
+            if (obj is None or is_obj1) and (board[i + half] is None or already_opp):
                 board_copy = board.copy()
                 board_copy[i + half] = self.space_object2
                 board_copy[i] = self.space_object1
@@ -1067,8 +1067,11 @@ class OppositeRule(RelationRule):
             return self._fill_board_none(board, num_objects)
         elif self.qualifier is RuleQualifier.AT_LEAST_ONE:
             # Not yet supported
-            return None
+            return []
         else:
+            if len(board) % 2 != 0:
+                return []
+            
             num_objects_left = num_objects.copy()
             for obj in board:
                 if obj is self.space_object1 or obj is self.space_object2:
